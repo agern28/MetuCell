@@ -1,0 +1,159 @@
+﻿@page "/assign-line"
+@inject MetuCell.Services.DatabaseService DbService
+@inject MetuCell.Services.AppState AppState
+@inject NavigationManager NavManager
+
+<style>
+    .assign-card {
+        background: #1e293b;
+        border: 1px solid #334155;
+        border-radius: 20px;
+        padding: 40px;
+        max-width: 600px;
+        margin: 40px auto;
+        color: white;
+        box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+    }
+    .form-label { color: #22d3ee; font-weight: bold; font-size: 0.9rem; }
+    .form-control-dark {
+        background: #0f172a;
+        border: 1px solid #334155;
+        color: white;
+        border-radius: 10px;
+        padding: 12px;
+        margin-bottom: 20px;
+        width: 100%;
+    }
+    .form-control-dark:focus { border-color: #22d3ee; outline: none; }
+    .btn-metu {
+        background: #22d3ee;
+        color: #0f172a;
+        font-weight: bold;
+        padding: 12px;
+        border-radius: 10px;
+        border: none;
+        width: 100%;
+        transition: 0.3s;
+    }
+    .btn-metu:hover { background: #fff; transform: translateY(-2px); }
+</style>
+
+@if (!AppState.IsLoggedIn)
+{
+    <div class="text-center mt-5"><div class="spinner-border text-info"></div></div>
+}
+else
+{
+    <div class="assign-card animate__animated animate__fadeInUp">
+        <h3 class="fw-bold mb-4 text-center" style="color: #22d3ee;">Yeni Hat Provizyonu</h3>
+        <p class="text-muted text-center mb-4">Bir SIM kartı ve telefon numarasını, yeni bir kullanıcıya (User) tanımlayın.</p>
+
+        <div class="row">
+            <div class="col-md-6">
+                <label class="form-label">Telefon Numarası</label>
+                <input type="text" class="form-control-dark" @bind="Phone" placeholder="5321234567" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Bağlanacak SIM ID</label>
+                <input type="number" class="form-control-dark" @bind="SimId" placeholder="Örn: 1" />
+            </div>
+        </div>
+
+        <hr class="border-secondary my-4" />
+        <h5 class="fw-bold mb-3 text-secondary">Kullanıcı (Actual User) Bilgileri</h5>
+
+        <div class="row">
+            <div class="col-md-6">
+                <label class="form-label">Kimlik No (TRNC ID)</label>
+                <input type="text" class="form-control-dark" @bind="TrnId" placeholder="11 Haneli" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Doğum Tarihi</label>
+                <input type="date" class="form-control-dark" @bind="Dob" />
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-6">
+                <label class="form-label">Ad</label>
+                <input type="text" class="form-control-dark" @bind="FirstName" placeholder="Ad" />
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Soyad</label>
+                <input type="text" class="form-control-dark" @bind="LastName" placeholder="Soyad" />
+            </div>
+        </div>
+
+        <label class="form-label">Cinsiyet</label>
+        <select class="form-control-dark" @bind="Gender">
+            <option value="Erkek">Erkek</option>
+            <option value="Kadın">Kadın</option>
+            <option value="Diğer">Diğer</option>
+        </select>
+
+        <button class="btn btn-metu mt-3" @onclick="ProvisionLine" disabled="@isLoading">
+            @(isLoading ? "İşleniyor..." : "HATTI AKTİVE ET")
+        </button>
+
+        @if (Message != null)
+        {
+            <div class="alert mt-4 @(isError ? "alert-danger" : "alert-success") bg-transparent border-0 fw-bold text-center">
+                @Message
+            </div>
+        }
+    </div>
+}
+
+@code {
+    // CS8618 uyarısı almamak için değişkenlere varsayılan değerler atadık
+    string Phone = "";
+    int SimId = 0;
+    string TrnId = "";
+    string FirstName = "";
+    string LastName = "";
+    string Gender = "Erkek";
+    DateTime Dob = DateTime.Today.AddYears(-20); // Varsayılan: 20 yaşında
+
+    bool isLoading = false;
+    string Message = null;
+    bool isError = false;
+
+    protected override void OnInitialized()
+    {
+        if (!AppState.IsLoggedIn) NavManager.NavigateTo("/login");
+    }
+
+    async Task ProvisionLine()
+    {
+        if (string.IsNullOrWhiteSpace(Phone) || SimId <= 0 || string.IsNullOrWhiteSpace(TrnId) || string.IsNullOrWhiteSpace(FirstName))
+        {
+            isError = true;
+            Message = "Lütfen tüm zorunlu alanları doldurun!";
+            return;
+        }
+
+        isLoading = true;
+        Message = null;
+
+        try
+        {
+            // İŞTE BURASI: Parametreler tam uyumlu şekilde gönderiliyor
+            await DbService.ProvisionMobileLineAsync(Phone, SimId, TrnId, FirstName, LastName, Gender, Dob);
+            
+            isError = false;
+            Message = "✅ Hat başarıyla provizyonlandı ve kullanıcı oluşturuldu!";
+            
+            // Formu temizle
+            Phone = ""; SimId = 0; TrnId = ""; FirstName = ""; LastName = "";
+        }
+        catch (Exception ex)
+        {
+            isError = true;
+            Message = "Hata: " + ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

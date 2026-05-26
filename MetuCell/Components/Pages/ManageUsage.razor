@@ -1,0 +1,45 @@
+﻿@page "/manage-usage"
+@inject MetuCell.Services.DatabaseService DbService
+
+<h3>Kullanım ve Promosyon Yönetimi</h3>
+<hr />
+<div class="row">
+    <!-- KOTA DÜŞÜRME EKRANI -->
+    <div class="col-md-6">
+        <div class="card p-3 border-danger mb-3">
+            <h5 class="text-danger">Ağ Kullanımı Simülasyonu (Update)</h5>
+            <input class="form-control mb-2" @bind="PhoneUsage" placeholder="Telefon No" />
+            <input class="form-control mb-2" type="number" @bind="UsedMb" placeholder="Kullanılan İnternet (MB)" />
+            <input class="form-control mb-2" type="number" @bind="UsedMin" placeholder="Kullanılan Dakika" />
+            <button class="btn btn-danger" @onclick="Consume">Kullanımı Faturaya Yansıt (Kotadan Düş)</button>
+        </div>
+    </div>
+    <!-- HEDİYE VERME EKRANI -->
+    <div class="col-md-6">
+        <div class="card p-3 border-success">
+            <h5 class="text-success">Hediye Paketi Tanımla (Transaction)</h5>
+            <input class="form-control mb-2" @bind="PhoneGift" placeholder="Telefon No" />
+            <input class="form-control mb-2" type="number" @bind="GiftPacketId" placeholder="Hediye Paket ID (Örn: 3)" />
+            <button class="btn btn-success" @onclick="GrantGift">Hediye Paketi Atama</button>
+        </div>
+    </div>
+</div>
+@if (Msg != null)
+{
+    <div class="alert alert-info mt-3">@Msg</div>
+}
+
+@code {
+    string PhoneUsage, PhoneGift, Msg;
+    int UsedMb, UsedMin, GiftPacketId;
+    async Task Consume()
+    {
+        try { await DbService.ConsumeServiceAsync(PhoneUsage, UsedMb, 0, UsedMin); Msg = "Kota başarıyla güncellendi."; }
+        catch (Exception ex) { Msg = "Hata: " + ex.Message; }
+    }
+    async Task GrantGift()
+    {
+        try { await DbService.GrantGiftPacketAsync(PhoneGift, GiftPacketId); Msg = "Hediye paketi tanımlandı ve bekleme süresi eklendi!"; }
+        catch (Exception ex) { Msg = "Hata: " + ex.Message; }
+    }
+}

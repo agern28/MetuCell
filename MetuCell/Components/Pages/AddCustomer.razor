@@ -1,0 +1,64 @@
+﻿@page "/add-customer"
+@inject MetuCell.Services.DatabaseService DbService
+
+<h3>Yeni Müşteri Kaydı</h3>
+<hr />
+
+<div class="mb-3">
+    <label>Müşteri Tipi:</label>
+    <select class="form-control" @bind="CustomerType">
+        <option value="Individual">Bireysel Müşteri</option>
+        <option value="Business">Kurumsal Müşteri</option>
+    </select>
+</div>
+
+<div class="mb-3"><label>Adres:</label><input class="form-control" @bind="Address" /></div>
+<div class="mb-3"><label>E-posta:</label><input class="form-control" @bind="Email" /></div>
+
+<hr />
+
+@if (CustomerType == "Individual")
+{
+    <div class="mb-3"><label>TRNC ID:</label><input class="form-control" @bind="TrncId" /></div>
+    <div class="mb-3"><label>Ad:</label><input class="form-control" @bind="FirstName" /></div>
+    <div class="mb-3"><label>Soyad:</label><input class="form-control" @bind="LastName" /></div>
+    <div class="mb-3"><label>Cinsiyet:</label><input class="form-control" @bind="Gender" /></div>
+    <div class="mb-3"><label>Doğum Tarihi:</label><input class="form-control" type="date" @bind="Dob" /></div>
+}
+else
+{
+    <div class="mb-3"><label>Şirket Adı:</label><input class="form-control" @bind="CompanyName" /></div>
+    <div class="mb-3"><label>Vergi No:</label><input class="form-control" @bind="TaxNumber" /></div>
+    <div class="mb-3"><label>Ticaret Sicil No:</label><input class="form-control" @bind="BusinessNumber" /></div>
+}
+
+<button class="btn btn-primary" @onclick="SaveCustomer">Sisteme Kaydet</button>
+
+@if (!string.IsNullOrEmpty(Message))
+{
+    <div class="alert alert-info mt-3">@Message</div>
+}
+
+@code {
+    string CustomerType = "Individual"; 
+    string Address, Email, Message;
+    string TrncId, FirstName, LastName, Gender, CompanyName, TaxNumber, BusinessNumber;
+    DateTime Dob = DateTime.Now;
+
+    async Task SaveCustomer()
+    {
+        try
+        {
+            if (CustomerType == "Individual")
+                await DbService.AddIndividualCustomerAsync(Address, Email, TrncId, FirstName, LastName, Gender, Dob);
+            else
+                await DbService.AddBusinessCustomerAsync(Address, Email, CompanyName, TaxNumber, BusinessNumber);
+            
+            Message = "Müşteri başarıyla eklendi!";
+        }
+        catch (Exception ex)
+        {
+            Message = "Hata oluştu: " + ex.Message;
+        }
+    }
+}

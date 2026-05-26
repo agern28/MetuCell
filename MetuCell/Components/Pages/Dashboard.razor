@@ -1,0 +1,152 @@
+﻿@page "/"
+@using MetuCell.Models
+@inject MetuCell.Services.DatabaseService DbService
+@inject MetuCell.Services.AppState AppState
+@inject NavigationManager NavManager
+
+<style>
+    .dashboard-hero {
+        text-align: center;
+        padding: 40px 20px;
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        border-radius: 30px;
+        border: 1px solid #334155;
+        margin-bottom: 40px;
+        box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+    }
+
+    .dashboard-hero h1 { color: #22d3ee; font-weight: 800; }
+    .dashboard-hero p { color: #94a3b8; }
+
+    .usage-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 30px;
+    }
+
+    .usage-card {
+        background: #1e293b;
+        border-radius: 24px;
+        padding: 40px 20px;
+        border: 1px solid #334155;
+        text-align: center;
+        transition: 0.3s;
+    }
+
+    .usage-card:hover { border-color: #22d3ee; transform: translateY(-5px); }
+
+    .gauge-box {
+        position: relative;
+        width: 160px;
+        height: 160px;
+        margin: 0 auto 20px;
+    }
+
+    .gauge-box svg { transform: rotate(-90deg); }
+    
+    .circle-bg { fill: none; stroke: #0f172a; stroke-width: 12; }
+    
+    .circle-val {
+        fill: none;
+        stroke-width: 12;
+        stroke-linecap: round;
+        transition: stroke-dashoffset 1s ease-out;
+    }
+
+    .inner-label {
+        position: absolute;
+        top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: #fff;
+    }
+
+    .stat-title { font-size: 1.2rem; font-weight: 700; color: #94a3b8; margin-top: 15px; }
+    .stat-desc { font-size: 1rem; color: #22d3ee; font-weight: 600; }
+
+    @@keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-up { animation: fadeIn 0.6s ease-out; }
+</style>
+
+@if (AppState.IsLoggedIn)
+{
+    <div class="animate-up">
+        <div class="dashboard-hero">
+            <h1>Hoş Geldin, @AppState.LoggedInName</h1>
+            <p class="mb-0">@AppState.LoggedInPhone hattına ait güncel kullanım verileri aşağıdadır.</p>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="text-center py-5"><div class="spinner-border text-info"></div></div>
+        }
+        else if (balance != null)
+        {
+            <div class="usage-container">
+                <!-- INTERNET -->
+                <div class="usage-card">
+                    <div class="gauge-box">
+                        <svg width="160" height="160">
+                            <circle class="circle-bg" cx="80" cy="80" r="72"></circle>
+                            <circle class="circle-val" cx="80" cy="80" r="72" stroke="#22d3ee"
+                                    style="stroke-dasharray: 452; stroke-dashoffset: @(452 - (452 * (balance.InternetLeft / 10000.0)))"></circle>
+                        </svg>
+                        <div class="inner-label">%@((balance.InternetLeft / 100))</div>
+                    </div>
+                    <div class="stat-title">İNTERNET</div>
+                    <div class="stat-desc">@balance.InternetLeft MB Kalan</div>
+                </div>
+
+                <!-- DAKİKA -->
+                <div class="usage-card">
+                    <div class="gauge-box">
+                        <svg width="160" height="160">
+                            <circle class="circle-bg" cx="80" cy="80" r="72"></circle>
+                            <circle class="circle-val" cx="80" cy="80" r="72" stroke="#22d3ee"
+                                    style="stroke-dasharray: 452; stroke-dashoffset: @(452 - (452 * (balance.MinuteLeft / 1000.0)))"></circle>
+                        </svg>
+                        <div class="inner-label">%@((balance.MinuteLeft / 10))</div>
+                    </div>
+                    <div class="stat-title">DAKİKA</div>
+                    <div class="stat-desc">@balance.MinuteLeft DK Kalan</div>
+                </div>
+
+                <!-- SMS -->
+                <div class="usage-card">
+                    <div class="gauge-box">
+                        <svg width="160" height="160">
+                            <circle class="circle-bg" cx="80" cy="80" r="72"></circle>
+                            <circle class="circle-val" cx="80" cy="80" r="72" stroke="#fbbf24"
+                                    style="stroke-dasharray: 452; stroke-dashoffset: @(452 - (452 * (balance.SmsLeft / 1000.0)))"></circle>
+                        </svg>
+                        <div class="inner-label">%@((balance.SmsLeft / 10))</div>
+                    </div>
+                    <div class="stat-title">SMS</div>
+                    <div class="stat-desc" style="color:#fbbf24;">@balance.SmsLeft SMS Kalan</div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    BalanceReport balance;
+    bool isLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AppState.IsLoggedIn) NavManager.NavigateTo("/login");
+        else await LoadData();
+    }
+
+    async Task LoadData()
+    {
+        isLoading = true;
+        balance = await DbService.GetRemainingBalancesAsync(AppState.LoggedInPhone);
+        isLoading = false;
+    }
+}

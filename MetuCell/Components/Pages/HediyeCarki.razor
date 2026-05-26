@@ -1,0 +1,172 @@
+﻿@page "/hediye-carki"
+@inject MetuCell.Services.DatabaseService DbService
+@inject MetuCell.Services.AppState AppState
+@inject NavigationManager NavManager
+
+<style>
+    .gift-page-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 70vh;
+        color: #ffffff;
+        text-align: center;
+    }
+
+    /* Fütüristik Hediye Kutusu */
+    .gift-box-unit {
+        width: 220px;
+        height: 220px;
+        background: linear-gradient(135deg, #22d3ee 0%, #0891b2 100%);
+        border-radius: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 100px;
+        cursor: pointer;
+        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        box-shadow: 0 0 40px rgba(34, 211, 238, 0.3);
+        border: 4px solid rgba(255, 255, 255, 0.1);
+        user-select: none;
+    }
+
+    .gift-box-unit:hover {
+        transform: scale(1.05) rotate(2deg);
+        box-shadow: 0 0 60px rgba(34, 211, 238, 0.5);
+    }
+
+    /* Sallanma Animasyonu - @@ İşaretiyle Düzeltildi */
+    .shaking {
+        animation: boxShake 0.5s infinite;
+    }
+
+    @@keyframes boxShake {
+        0% { transform: rotate(0); }
+        25% { transform: rotate(8deg); }
+        50% { transform: rotate(-8deg); }
+        75% { transform: rotate(4deg); }
+        100% { transform: rotate(0); }
+    }
+
+    .gift-title { color: #22d3ee; font-weight: 800; font-size: 2.5rem; margin-bottom: 10px; }
+    .gift-subtitle { color: #94a3b8; margin-bottom: 40px; }
+    
+    .result-card {
+        background: #1e293b;
+        border: 2px solid #22d3ee;
+        padding: 40px;
+        border-radius: 30px;
+        box-shadow: 0 15px 40px rgba(0,0,0,0.4);
+        max-width: 500px;
+        width: 100%;
+    }
+
+    .btn-metu {
+        background: #22d3ee;
+        color: #0f172a;
+        font-weight: bold;
+        padding: 12px 30px;
+        border-radius: 50px;
+        border: none;
+        transition: 0.3s;
+    }
+
+    .btn-metu:hover { background: #fff; transform: translateY(-2px); }
+</style>
+
+<div class="gift-page-wrapper">
+    @if (!AppState.IsLoggedIn)
+    {
+        <div class="spinner-border text-info" role="status"></div>
+        <p class="mt-3 text-muted">Yetki kontrol ediliyor...</p>
+    }
+    else
+    {
+        <h1 class="gift-title">Salla Kazan</h1>
+        <p class="gift-subtitle">@AppState.LoggedInName, haftalık sürpriz hediyeni keşfet!</p>
+
+        @if (!isOpened)
+        {
+            <div class="gift-box-unit @(isSpinning ? "shaking" : "")" @onclick="HandleOpen">
+                🎁
+            </div>
+            
+            <div class="mt-5">
+                <button class="btn btn-metu shadow-lg" @onclick="HandleOpen" disabled="@isSpinning">
+                    @(isSpinning ? "KUTU AÇILIYOR..." : "HEDİYEMİ AL")
+                </button>
+            </div>
+            
+            <p class="mt-3 text-muted small">Her 30 günde bir kullanım hakkınız yenilenir.</p>
+        }
+        else
+        {
+            <div class="result-card animate__animated animate__zoomIn">
+                <h2 class="text-white fw-bold mb-3">TEBRİKLER! 🎉</h2>
+                <div class="display-6 fw-bold text-info mb-4">@wonGiftName</div>
+                <p class="text-muted">Hediyeniz <strong>@AppState.LoggedInPhone</strong> numaralı hattınıza başarıyla tanımlandı.</p>
+                <button class="btn btn-outline-info rounded-pill px-4 mt-3" @onclick="() => isOpened = false">Kapat</button>
+            </div>
+        }
+
+        @if (errorMessage != null)
+        {
+            <div class="alert bg-transparent border-danger text-danger mt-4 fw-bold">
+                ⚠️ @errorMessage
+            </div>
+        }
+    }
+</div>
+
+@code {
+    bool isSpinning = false;
+    bool isOpened = false;
+    string wonGiftName = "";
+    string errorMessage = null;
+
+    protected override void OnInitialized()
+    {
+        if (!AppState.IsLoggedIn)
+        {
+            NavManager.NavigateTo("/login");
+        }
+    }
+
+    async Task HandleOpen()
+    {
+        if (isSpinning) return;
+        errorMessage = null;
+
+        try
+        {
+            // 1. Veritabanından hak kontrolü yap (Cooldown)
+            var eligibleLines = await DbService.GetEligibleLinesForGiftAsync();
+            
+            if (!eligibleLines.Contains(AppState.LoggedInPhone))
+            {
+                errorMessage = "Üzgünüz, bu ayki hediye hakkınızı zaten kullanmışsınız!";
+                return;
+            }
+
+            // 2. Animasyon başlat
+            isSpinning = true;
+            await Task.Delay(2500); // 2.5 saniye salla
+
+            // 3. Hediye belirle
+            string[] gifts = { "10 GB İnternet", "Sınırsız WhatsApp", "Her Yöne 500 DK", "Haftalık 2 GB" };
+            wonGiftName = gifts[new Random().Next(gifts.Length)];
+
+            // 4. Veritabanına işle (Hediye ID: 3)
+            await DbService.GrantGiftPacketAsync(AppState.LoggedInPhone, 3);
+
+            isSpinning = false;
+            isOpened = true;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "İşlem sırasında bir hata oluştu: " + ex.Message;
+            isSpinning = false;
+        }
+    }
+}

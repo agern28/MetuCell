@@ -1,0 +1,145 @@
+﻿@inherits LayoutComponentBase
+@inject MetuCell.Services.AppState AppState
+@inject NavigationManager NavManager
+
+<style>
+    :root {
+        --bg-dark: #0f172a;
+        --card-dark: #1e293b;
+        --accent: #22d3ee;
+        --text: #f8fafc;
+        --text-muted: #94a3b8;
+    }
+
+    body {
+        background-color: var(--bg-dark);
+        color: var(--text);
+        margin: 0;
+        font-family: 'Inter', sans-serif;
+    }
+
+    /* Üst Navigasyon Çubuğu */
+    .top-nav {
+        background: rgba(15, 23, 42, 0.95);
+        backdrop-filter: blur(12px);
+        height: 70px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 30px;
+        position: fixed;
+        top: 0;
+        width: 100%;
+        z-index: 1000;
+        border-bottom: 1px solid #334155;
+    }
+
+    .nav-group {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    
+    .nav-link-custom {
+        background: var(--card-dark);
+        border: 1px solid #334155;
+        color: var(--text);
+        padding: 8px 16px;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: 0.3s;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+
+        .nav-link-custom:hover {
+            background: var(--accent);
+            color: var(--bg-dark);
+            border-color: var(--accent);
+            transform: translateY(-2px);
+        }
+
+        .nav-link-custom.active {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: rgba(34, 211, 238, 0.1);
+        }
+
+    .brand-logo {
+        font-weight: 900;
+        font-size: 1.6rem;
+        color: var(--accent);
+        letter-spacing: 2px;
+        text-decoration: none;
+    }
+
+    /* Ana İçerik Alanı */
+    .app-main {
+        padding-top: 100px;
+        padding-bottom: 40px;
+        min-height: 100vh;
+        max-width: 1200px;
+        margin: 0 auto;
+        padding-left: 20px;
+        padding-right: 20px;
+    }
+
+    .user-info {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+    }
+</style>
+
+<div class="top-nav">
+    <div class="nav-group">
+        @if (AppState.IsLoggedIn)
+        {
+            <button class="nav-link-custom" @onclick="GoBack">
+                <span class="bi bi-chevron-left"></span> Geri
+            </button>
+            <NavLink class="nav-link-custom" href="" Match="NavLinkMatch.All">
+                <span class="bi bi-grid-1x2"></span> Panel
+            </NavLink>
+            <NavLink class="nav-link-custom" href="hediye-carki">
+                <span class="bi bi-gift"></span> Salla Kazan
+            </NavLink>
+        }
+    </div>
+
+    <a href="/" class="brand-logo">METUCELL</a>
+
+    <div class="nav-group">
+        @if (AppState.IsLoggedIn)
+        {
+            <div class="text-end d-none d-lg-block me-2">
+                <div class="text-white fw-bold" style="font-size: 0.9rem;">@AppState.LoggedInName</div>
+                <div class="user-info">@AppState.LoggedInPhone</div>
+            </div>
+            <button class="nav-link-custom border-danger text-danger" @onclick="Logout">
+                <span class="bi bi-power"></span>
+            </button>
+        }
+        else
+        {
+            <NavLink class="nav-link-custom" href="login">Giriş Yap</NavLink>
+        }
+    </div>
+</div>
+
+<main class="app-main">
+    @Body
+</main>
+
+@code {
+    void GoBack() => NavManager.NavigateTo("javascript:history.back()");
+    
+    void Logout()
+    {
+        AppState.Logout();
+        NavManager.NavigateTo("/login");
+    }
+}

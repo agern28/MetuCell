@@ -1,0 +1,47 @@
+﻿@page "/login"
+@inject MetuCell.Services.DatabaseService DbService
+@inject MetuCell.Services.AppState AppState
+@inject NavigationManager NavManager
+
+<style>
+    .login-container { max-width: 400px; margin: 50px auto; padding: 30px; background: white; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); text-align: center; }
+    .turkcell-logo { color: #283593; font-weight: bold; font-size: 30px; margin-bottom: 20px; }
+</style>
+
+<div class="login-container">
+    <div class="turkcell-logo">MetuCell Login</div>
+    <p class="text-muted mb-4">Dijital İşlemler'e giriş yapın</p>
+
+    <input type="text" class="form-control mb-3 p-3" @bind="Phone" placeholder="Telefon Numarası (Örn: 5321234567)" />
+    <input type="password" class="form-control mb-4 p-3" @bind="Password" placeholder="Şifreniz (Örn: 1234)" />
+
+    <button class="btn btn-warning w-100 p-3 fw-bold fs-5" @onclick="DoLogin">GİRİŞ YAP</button>
+
+    @if (ErrorMessage != null)
+    {
+        <div class="alert alert-danger mt-3">@ErrorMessage</div>
+    }
+</div>
+
+@code {
+    string Phone = "5321234567";
+    string Password = "1234";
+    string ErrorMessage;
+
+    async Task DoLogin()
+    {
+        ErrorMessage = null;
+        var user = await DbService.LoginAsync(Phone, Password);
+
+        if (user != null)
+        {
+            // Sisteme giriş yap ve ana sayfaya yönlendir
+            AppState.Login(Phone, $"{user.FirstName} {user.LastName}");
+            NavManager.NavigateTo("");
+        }
+        else
+        {
+            ErrorMessage = "Hatalı telefon numarası veya şifre!";
+        }
+    }
+}
