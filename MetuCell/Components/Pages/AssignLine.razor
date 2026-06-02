@@ -5,37 +5,20 @@
 
 <style>
     .assign-card {
-        background: #1e293b;
-        border: 1px solid #334155;
-        border-radius: 20px;
-        padding: 40px;
-        max-width: 600px;
-        margin: 40px auto;
-        color: white;
-        box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 22px;
+        padding: 38px;
+        max-width: 680px;
+        margin: 0 auto;
+        box-shadow: var(--shadow);
     }
-    .form-label { color: #22d3ee; font-weight: bold; font-size: 0.9rem; }
-    .form-control-dark {
-        background: #0f172a;
-        border: 1px solid #334155;
-        color: white;
-        border-radius: 10px;
-        padding: 12px;
-        margin-bottom: 20px;
-        width: 100%;
+
+    .sec-label {
+        color: var(--accent);
+        font-weight: 800;
+        letter-spacing: .5px;
     }
-    .form-control-dark:focus { border-color: #22d3ee; outline: none; }
-    .btn-metu {
-        background: #22d3ee;
-        color: #0f172a;
-        font-weight: bold;
-        padding: 12px;
-        border-radius: 10px;
-        border: none;
-        width: 100%;
-        transition: 0.3s;
-    }
-    .btn-metu:hover { background: #fff; transform: translateY(-2px); }
 </style>
 
 @if (!AppState.IsLoggedIn)
@@ -45,78 +28,51 @@
 else
 {
     <div class="assign-card animate__animated animate__fadeInUp">
-        <h3 class="fw-bold mb-4 text-center" style="color: #22d3ee;">Yeni Hat Provizyonu</h3>
-        <p class="text-muted text-center mb-4">Bir SIM kartı ve telefon numarasını, yeni bir kullanıcıya (User) tanımlayın.</p>
+        <h3 class="fw-bold mb-1" style="color: var(--accent);"><i class="bi bi-sim-fill"></i> Yeni Hat Provizyonu</h3>
+        <p class="text-secondary mb-4">Bir SIM kartı ve telefon numarasını, fiilen kullanacak kişiye (Actual User) tanımlayın.</p>
 
-        <div class="row">
-            <div class="col-md-6">
-                <label class="form-label">Telefon Numarası</label>
-                <input type="text" class="form-control-dark" @bind="Phone" placeholder="5321234567" />
-            </div>
-            <div class="col-md-6">
-                <label class="form-label">Bağlanacak SIM ID</label>
-                <input type="number" class="form-control-dark" @bind="SimId" placeholder="Örn: 1" />
-            </div>
+        <div class="row g-3">
+            <div class="col-md-6"><label>Telefon Numarası</label><input class="form-control" @bind="Phone" placeholder="5321234567" /></div>
+            <div class="col-md-6"><label>Bağlanacak SIM ID</label><input type="number" class="form-control" @bind="SimId" placeholder="Örn: 5009" /></div>
         </div>
 
-        <hr class="border-secondary my-4" />
-        <h5 class="fw-bold mb-3 text-secondary">Kullanıcı (Actual User) Bilgileri</h5>
+        <hr class="my-4" />
+        <div class="sec-label mb-3"><i class="bi bi-person-vcard"></i> Kullanıcı (Actual User) Bilgileri</div>
 
-        <div class="row">
+        <div class="row g-3">
+            <div class="col-md-6"><label>Kimlik No (TRNC ID)</label><input class="form-control" @bind="TrnId" placeholder="11 haneli" /></div>
+            <div class="col-md-6"><label>Doğum Tarihi</label><input type="date" class="form-control" @bind="Dob" /></div>
+            <div class="col-md-6"><label>Ad</label><input class="form-control" @bind="FirstName" /></div>
+            <div class="col-md-6"><label>Soyad</label><input class="form-control" @bind="LastName" /></div>
             <div class="col-md-6">
-                <label class="form-label">Kimlik No (TRNC ID)</label>
-                <input type="text" class="form-control-dark" @bind="TrnId" placeholder="11 Haneli" />
+                <label>Cinsiyet</label>
+                <select class="form-select" @bind="Gender">
+                    <option value="Male">Erkek</option>
+                    <option value="Female">Kadın</option>
+                    <option value="Other">Diğer</option>
+                </select>
             </div>
-            <div class="col-md-6">
-                <label class="form-label">Doğum Tarihi</label>
-                <input type="date" class="form-control-dark" @bind="Dob" />
-            </div>
+            <div class="col-md-6"><label>Kullanıcı Şifresi</label><input type="password" class="form-control" @bind="Password" placeholder="Hat self-servis şifresi" /></div>
         </div>
 
-        <div class="row">
-            <div class="col-md-6">
-                <label class="form-label">Ad</label>
-                <input type="text" class="form-control-dark" @bind="FirstName" placeholder="Ad" />
-            </div>
-            <div class="col-md-6">
-                <label class="form-label">Soyad</label>
-                <input type="text" class="form-control-dark" @bind="LastName" placeholder="Soyad" />
-            </div>
-        </div>
-
-        <label class="form-label">Cinsiyet</label>
-        <select class="form-control-dark" @bind="Gender">
-            <option value="Erkek">Erkek</option>
-            <option value="Kadın">Kadın</option>
-            <option value="Diğer">Diğer</option>
-        </select>
-
-        <button class="btn btn-metu mt-3" @onclick="ProvisionLine" disabled="@isLoading">
+        <button class="btn btn-primary w-100 mt-4 py-2" @onclick="ProvisionLine" disabled="@isLoading">
             @(isLoading ? "İşleniyor..." : "HATTI AKTİVE ET")
         </button>
 
         @if (Message != null)
         {
-            <div class="alert mt-4 @(isError ? "alert-danger" : "alert-success") bg-transparent border-0 fw-bold text-center">
-                @Message
-            </div>
+            <div class="alert @(isError ? "alert-danger" : "alert-success") mt-3 mb-0 fw-bold text-center">@Message</div>
         }
     </div>
 }
 
 @code {
-    // CS8618 uyarısı almamak için değişkenlere varsayılan değerler atadık
     string Phone = "";
     int SimId = 0;
-    string TrnId = "";
-    string FirstName = "";
-    string LastName = "";
-    string Gender = "Erkek";
-    DateTime Dob = DateTime.Today.AddYears(-20); // Varsayılan: 20 yaşında
-
-    bool isLoading = false;
+    string TrnId = "", FirstName = "", LastName = "", Gender = "Male", Password = "";
+    DateTime Dob = DateTime.Today.AddYears(-20);
+    bool isLoading = false, isError = false;
     string Message = null;
-    bool isError = false;
 
     protected override void OnInitialized()
     {
@@ -125,35 +81,24 @@ else
 
     async Task ProvisionLine()
     {
-        if (string.IsNullOrWhiteSpace(Phone) || SimId <= 0 || string.IsNullOrWhiteSpace(TrnId) || string.IsNullOrWhiteSpace(FirstName))
+        if (string.IsNullOrWhiteSpace(Phone) || SimId <= 0 || string.IsNullOrWhiteSpace(TrnId)
+            || string.IsNullOrWhiteSpace(FirstName) || string.IsNullOrWhiteSpace(Password))
         {
-            isError = true;
-            Message = "Lütfen tüm zorunlu alanları doldurun!";
-            return;
+            isError = true; Message = "Lütfen tüm zorunlu alanları doldurun (şifre dâhil)!"; return;
         }
 
-        isLoading = true;
-        Message = null;
-
+        isLoading = true; Message = null;
         try
         {
-            // İŞTE BURASI: Parametreler tam uyumlu şekilde gönderiliyor
-            await DbService.ProvisionMobileLineAsync(Phone, SimId, TrnId, FirstName, LastName, Gender, Dob);
-            
+            await DbService.ProvisionMobileLineAsync(Phone, SimId, TrnId, FirstName, LastName, Gender, Dob, Password);
             isError = false;
             Message = "✅ Hat başarıyla provizyonlandı ve kullanıcı oluşturuldu!";
-            
-            // Formu temizle
-            Phone = ""; SimId = 0; TrnId = ""; FirstName = ""; LastName = "";
+            Phone = ""; SimId = 0; TrnId = ""; FirstName = ""; LastName = ""; Password = "";
         }
         catch (Exception ex)
         {
-            isError = true;
-            Message = "Hata: " + ex.Message;
+            isError = true; Message = "Hata: " + ex.Message;
         }
-        finally
-        {
-            isLoading = false;
-        }
+        finally { isLoading = false; }
     }
 }

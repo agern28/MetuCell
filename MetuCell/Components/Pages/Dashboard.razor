@@ -15,8 +15,14 @@
         box-shadow: 0 15px 35px rgba(0,0,0,0.2);
     }
 
-    .dashboard-hero h1 { color: #22d3ee; font-weight: 800; }
-    .dashboard-hero p { color: #94a3b8; }
+        .dashboard-hero h1 {
+            color: #22d3ee;
+            font-weight: 800;
+        }
+
+        .dashboard-hero p {
+            color: #94a3b8;
+        }
 
     .usage-container {
         display: grid;
@@ -33,7 +39,10 @@
         transition: 0.3s;
     }
 
-    .usage-card:hover { border-color: #22d3ee; transform: translateY(-5px); }
+        .usage-card:hover {
+            border-color: #22d3ee;
+            transform: translateY(-5px);
+        }
 
     .gauge-box {
         position: relative;
@@ -42,10 +51,16 @@
         margin: 0 auto 20px;
     }
 
-    .gauge-box svg { transform: rotate(-90deg); }
-    
-    .circle-bg { fill: none; stroke: #0f172a; stroke-width: 12; }
-    
+        .gauge-box svg {
+            transform: rotate(-90deg);
+        }
+
+    .circle-bg {
+        fill: none;
+        stroke: #0f172a;
+        stroke-width: 12;
+    }
+
     .circle-val {
         fill: none;
         stroke-width: 12;
@@ -55,21 +70,42 @@
 
     .inner-label {
         position: absolute;
-        top: 50%; left: 50%;
+        top: 50%;
+        left: 50%;
         transform: translate(-50%, -50%);
         font-size: 1.8rem;
         font-weight: 800;
         color: #fff;
     }
 
-    .stat-title { font-size: 1.2rem; font-weight: 700; color: #94a3b8; margin-top: 15px; }
-    .stat-desc { font-size: 1rem; color: #22d3ee; font-weight: 600; }
+    .stat-title {
+        font-size: 1.2rem;
+        font-weight: 700;
+        color: #94a3b8;
+        margin-top: 15px;
+    }
+
+    .stat-desc {
+        font-size: 1rem;
+        color: #22d3ee;
+        font-weight: 600;
+    }
 
     @@keyframes fadeIn {
-        from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: translateY(0); }
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
-    .animate-up { animation: fadeIn 0.6s ease-out; }
+
+    .animate-up {
+        animation: fadeIn 0.6s ease-out;
+    }
 </style>
 
 @if (AppState.IsLoggedIn)

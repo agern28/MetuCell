@@ -3,131 +3,220 @@
 @inject NavigationManager NavManager
 
 <style>
-    :root {
-        --bg-dark: #0f172a;
-        --card-dark: #1e293b;
-        --accent: #22d3ee;
-        --text: #f8fafc;
-        --text-muted: #94a3b8;
-    }
-
-    body {
-        background-color: var(--bg-dark);
-        color: var(--text);
-        margin: 0;
-        font-family: 'Inter', sans-serif;
-    }
-
-    /* Üst Navigasyon Çubuğu */
     .top-nav {
-        background: rgba(15, 23, 42, 0.95);
-        backdrop-filter: blur(12px);
-        height: 70px;
+        background: rgba(11, 18, 32, 0.82);
+        backdrop-filter: blur(14px);
+        -webkit-backdrop-filter: blur(14px);
+        min-height: 68px;
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        padding: 0 30px;
+        gap: 18px;
+        padding: 0 22px;
         position: fixed;
         top: 0;
-        width: 100%;
+        left: 0;
+        right: 0;
         z-index: 1000;
-        border-bottom: 1px solid #334155;
+        border-bottom: 1px solid var(--border);
     }
 
-    .nav-group {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-    }
-    
-    .nav-link-custom {
-        background: var(--card-dark);
-        border: 1px solid #334155;
-        color: var(--text);
-        padding: 8px 16px;
-        border-radius: 12px;
-        cursor: pointer;
-        transition: 0.3s;
+    .brand-logo {
+        font-family: 'Sora', sans-serif;
+        font-weight: 800;
+        font-size: 1.45rem;
+        color: var(--accent);
+        letter-spacing: 3px;
         text-decoration: none;
+        white-space: nowrap;
+        text-shadow: 0 0 22px rgba(34, 211, 238, 0.45);
         display: flex;
         align-items: center;
         gap: 8px;
-        font-size: 0.9rem;
-        font-weight: 600;
     }
 
-        .nav-link-custom:hover {
+        .brand-logo .dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: var(--good);
+            box-shadow: 0 0 10px var(--good);
+            animation: livePulse 2s infinite;
+        }
+
+    @@keyframes livePulse {
+        0%, 100% {
+            opacity: 1
+        }
+
+        50% {
+            opacity: .35
+        }
+    }
+
+    /* Yatay kaydirilabilir navigasyon */
+    .nav-rail {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex: 1;
+        overflow-x: auto;
+        padding: 8px 0;
+        scrollbar-width: none;
+    }
+
+        .nav-rail::-webkit-scrollbar {
+            display: none;
+        }
+
+    .nav-pill {
+        background: var(--card-2);
+        border: 1px solid var(--border);
+        color: var(--text);
+        padding: 9px 15px;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all .22s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.86rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+        .nav-pill:hover {
             background: var(--accent);
-            color: var(--bg-dark);
+            color: var(--bg-0);
             border-color: var(--accent);
             transform: translateY(-2px);
         }
 
-        .nav-link-custom.active {
+        .nav-pill.active {
             border-color: var(--accent);
             color: var(--accent);
-            background: rgba(34, 211, 238, 0.1);
+            background: rgba(34, 211, 238, 0.12);
         }
 
-    .brand-logo {
-        font-weight: 900;
-        font-size: 1.6rem;
-        color: var(--accent);
-        letter-spacing: 2px;
-        text-decoration: none;
+        .nav-pill.gift {
+            border-color: rgba(251,191,36,.5);
+        }
+
+            .nav-pill.gift:hover {
+                background: var(--gold);
+                color: #2a1d00;
+                border-color: var(--gold);
+            }
+
+    .nav-right {
+        display: flex;
+        align-items: center;
+        gap: 12px;
     }
 
-    /* Ana İçerik Alanı */
+    .who {
+        text-align: right;
+        line-height: 1.1;
+    }
+
+        .who .nm {
+            font-weight: 800;
+            font-size: 0.85rem;
+            color: #fff;
+        }
+
+        .who .ph {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+        }
+
+    .icon-btn {
+        background: var(--card-2);
+        border: 1px solid var(--border);
+        color: var(--bad);
+        width: 40px;
+        height: 40px;
+        border-radius: 12px;
+        cursor: pointer;
+        transition: .22s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.05rem;
+    }
+
+        .icon-btn:hover {
+            background: var(--bad);
+            color: #2a0712;
+            border-color: var(--bad);
+        }
+
     .app-main {
-        padding-top: 100px;
-        padding-bottom: 40px;
+        padding-top: 96px;
+        padding-bottom: 48px;
         min-height: 100vh;
-        max-width: 1200px;
+        max-width: 1180px;
         margin: 0 auto;
         padding-left: 20px;
         padding-right: 20px;
     }
 
-    .user-info {
-        color: var(--text-muted);
-        font-size: 0.85rem;
+    @@media (max-width: 720px) {
+        .brand-logo {
+            font-size: 1.15rem;
+            letter-spacing: 2px;
+        }
+
+        .who {
+            display: none;
+        }
     }
 </style>
 
 <div class="top-nav">
-    <div class="nav-group">
-        @if (AppState.IsLoggedIn)
-        {
-            <button class="nav-link-custom" @onclick="GoBack">
-                <span class="bi bi-chevron-left"></span> Geri
-            </button>
-            <NavLink class="nav-link-custom" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-grid-1x2"></span> Panel
-            </NavLink>
-            <NavLink class="nav-link-custom" href="hediye-carki">
-                <span class="bi bi-gift"></span> Salla Kazan
-            </NavLink>
-        }
-    </div>
+    <a href="/" class="brand-logo"><span class="dot"></span>METUCELL</a>
 
-    <a href="/" class="brand-logo">METUCELL</a>
+    @if (AppState.IsLoggedIn)
+    {
+        <nav class="nav-rail">
+            <NavLink class="nav-pill" href="" Match="NavLinkMatch.All">
+                <i class="bi bi-grid-1x2-fill"></i> Panel
+            </NavLink>
+            <NavLink class="nav-pill" href="add-customer">
+                <i class="bi bi-person-plus-fill"></i> Müşteri
+            </NavLink>
+            <NavLink class="nav-pill" href="assign-line">
+                <i class="bi bi-sim-fill"></i> Hat Provizyon
+            </NavLink>
+            <NavLink class="nav-pill" href="manage-usage">
+                <i class="bi bi-sliders"></i> Kullanım & Promosyon
+            </NavLink>
+            <NavLink class="nav-pill" href="reports">
+                <i class="bi bi-bar-chart-fill"></i> Raporlar
+            </NavLink>
+            <NavLink class="nav-pill gift" href="hediye-carki">
+                <i class="bi bi-gift-fill"></i> Salla Kazan
+            </NavLink>
+        </nav>
 
-    <div class="nav-group">
-        @if (AppState.IsLoggedIn)
-        {
-            <div class="text-end d-none d-lg-block me-2">
-                <div class="text-white fw-bold" style="font-size: 0.9rem;">@AppState.LoggedInName</div>
-                <div class="user-info">@AppState.LoggedInPhone</div>
+        <div class="nav-right">
+            <div class="who">
+                <div class="nm">@AppState.LoggedInName</div>
+                <div class="ph">@AppState.LoggedInPhone</div>
             </div>
-            <button class="nav-link-custom border-danger text-danger" @onclick="Logout">
-                <span class="bi bi-power"></span>
+            <button class="icon-btn" title="Çıkış Yap" @onclick="Logout">
+                <i class="bi bi-power"></i>
             </button>
-        }
-        else
-        {
-            <NavLink class="nav-link-custom" href="login">Giriş Yap</NavLink>
-        }
-    </div>
+        </div>
+    }
+    else
+    {
+        <div class="nav-right" style="flex:1; justify-content:flex-end;">
+            <NavLink class="nav-pill" href="login">
+                <i class="bi bi-box-arrow-in-right"></i> Giriş Yap
+            </NavLink>
+        </div>
+    }
 </div>
 
 <main class="app-main">
@@ -135,8 +224,6 @@
 </main>
 
 @code {
-    void GoBack() => NavManager.NavigateTo("javascript:history.back()");
-    
     void Logout()
     {
         AppState.Logout();

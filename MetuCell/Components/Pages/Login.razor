@@ -1,47 +1,141 @@
 ﻿@page "/login"
+@layout MetuCell.Components.Layout.MainLayout
 @inject MetuCell.Services.DatabaseService DbService
 @inject MetuCell.Services.AppState AppState
 @inject NavigationManager NavManager
 
 <style>
-    .login-container { max-width: 400px; margin: 50px auto; padding: 30px; background: white; border-radius: 15px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); text-align: center; }
-    .turkcell-logo { color: #283593; font-weight: bold; font-size: 30px; margin-bottom: 20px; }
+    .login-wrap {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 72vh;
+    }
+
+    .login-card {
+        width: 100%;
+        max-width: 410px;
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 26px;
+        padding: 42px 36px;
+        box-shadow: var(--shadow);
+        position: relative;
+        overflow: hidden;
+    }
+
+        .login-card::before {
+            content: "";
+            position: absolute;
+            top: -60px;
+            right: -60px;
+            width: 180px;
+            height: 180px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(34,211,238,.22), transparent 70%);
+        }
+
+    .login-logo {
+        font-family: 'Sora', sans-serif;
+        font-weight: 800;
+        font-size: 1.9rem;
+        color: var(--accent);
+        letter-spacing: 2px;
+        text-align: center;
+        text-shadow: 0 0 26px rgba(34,211,238,.4);
+    }
+
+    .login-sub {
+        color: var(--text-muted);
+        text-align: center;
+        margin-bottom: 28px;
+        font-size: .92rem;
+    }
+
+    .field-icon {
+        position: relative;
+    }
+
+        .field-icon i {
+            position: absolute;
+            left: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+        }
+
+        .field-icon .form-control {
+            padding-left: 42px;
+        }
+
+    .hint {
+        font-size: .76rem;
+        color: #64748b;
+        text-align: center;
+        margin-top: 16px;
+    }
 </style>
 
-<div class="login-container">
-    <div class="turkcell-logo">MetuCell Login</div>
-    <p class="text-muted mb-4">Dijital İşlemler'e giriş yapın</p>
+<div class="login-wrap">
+    <div class="login-card animate__animated animate__fadeInUp">
+        <div class="login-logo">MetuCell</div>
+        <p class="login-sub">Dijital İşlemler Merkezi'ne giriş yapın</p>
 
-    <input type="text" class="form-control mb-3 p-3" @bind="Phone" placeholder="Telefon Numarası (Örn: 5321234567)" />
-    <input type="password" class="form-control mb-4 p-3" @bind="Password" placeholder="Şifreniz (Örn: 1234)" />
+        <div class="field-icon mb-3">
+            <i class="bi bi-telephone"></i>
+            <input type="text" class="form-control" @bind="Phone" placeholder="Telefon Numarası" />
+        </div>
+        <div class="field-icon mb-4">
+            <i class="bi bi-lock"></i>
+            <input type="password" class="form-control" @bind="Password" placeholder="Şifre"
+                   @onkeyup="OnKey" />
+        </div>
 
-    <button class="btn btn-warning w-100 p-3 fw-bold fs-5" @onclick="DoLogin">GİRİŞ YAP</button>
+        <button class="btn btn-primary w-100 p-3 fw-bold fs-6" @onclick="DoLogin" disabled="@busy">
+            @(busy ? "Kontrol ediliyor..." : "GİRİŞ YAP")
+        </button>
 
-    @if (ErrorMessage != null)
-    {
-        <div class="alert alert-danger mt-3">@ErrorMessage</div>
-    }
+        @if (ErrorMessage != null)
+        {
+            <div class="alert alert-danger mt-3 mb-0 text-center fw-bold">@ErrorMessage</div>
+        }
+
+        <div class="hint">Demo: 5551000001 / usr_ahmet_1</div>
+    </div>
 </div>
 
 @code {
-    string Phone = "5321234567";
-    string Password = "1234";
+    string Phone = "5551000001";
+    string Password = "usr_ahmet_1";
     string ErrorMessage;
+    bool busy = false;
+
+    async Task OnKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await DoLogin();
+    }
 
     async Task DoLogin()
     {
         ErrorMessage = null;
-        var user = await DbService.LoginAsync(Phone, Password);
-
-        if (user != null)
+        busy = true;
+        try
         {
-            // Sisteme giriş yap ve ana sayfaya yönlendir
-            AppState.Login(Phone, $"{user.FirstName} {user.LastName}");
-            NavManager.NavigateTo("");
+            var user = await DbService.LoginAsync(Phone, Password);
+            if (user != null)
+            {
+                AppState.Login(Phone, $"{user.FirstName} {user.LastName}");
+                NavManager.NavigateTo("");
+            }
+            else
+            {
+                ErrorMessage = "Hatalı telefon numarası veya şifre!";
+            }
         }
-        else
+        catch (Exception ex)
         {
-            ErrorMessage = "Hatalı telefon numarası veya şifre!";
+            ErrorMessage = "Bağlantı hatası: " + ex.Message;
         }
+        finally { busy = false; }
     }
 }

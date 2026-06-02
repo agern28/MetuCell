@@ -1,45 +1,106 @@
 ﻿@page "/manage-usage"
 @inject MetuCell.Services.DatabaseService DbService
+@inject MetuCell.Services.AppState AppState
+@inject NavigationManager NavManager
 
-<h3>Kullanım ve Promosyon Yönetimi</h3>
-<hr />
-<div class="row">
-    <!-- KOTA DÜŞÜRME EKRANI -->
-    <div class="col-md-6">
-        <div class="card p-3 border-danger mb-3">
-            <h5 class="text-danger">Ağ Kullanımı Simülasyonu (Update)</h5>
-            <input class="form-control mb-2" @bind="PhoneUsage" placeholder="Telefon No" />
-            <input class="form-control mb-2" type="number" @bind="UsedMb" placeholder="Kullanılan İnternet (MB)" />
-            <input class="form-control mb-2" type="number" @bind="UsedMin" placeholder="Kullanılan Dakika" />
-            <button class="btn btn-danger" @onclick="Consume">Kullanımı Faturaya Yansıt (Kotadan Düş)</button>
+<style>
+    .mu-shell {
+        max-width: 980px;
+        margin: 0 auto;
+    }
+
+    .mu-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        padding: 26px;
+        height: 100%;
+    }
+
+        .mu-card h5 {
+            font-weight: 800;
+        }
+</style>
+
+<div class="mu-shell animate__animated animate__fadeIn">
+    <h2 style="color: var(--accent); font-weight: 800; margin-bottom: 6px;">
+        <i class="bi bi-sliders"></i> Kullanım & Promosyon Yönetimi
+    </h2>
+    <p class="text-secondary mb-4">Ağ tüketimini kotadan düşün veya bir hatta hediye paketi tanımlayın.</p>
+
+    <div class="row g-4">
+        <!-- KOTA DUSME (UPDATE) -->
+        <div class="col-md-6">
+            <div class="mu-card">
+                <h5 style="color: var(--bad);"><i class="bi bi-graph-down-arrow"></i> Ağ Kullanımı (UPDATE)</h5>
+                <p class="text-secondary small mb-3">Tüketilen miktarı aktif paketten düşer.</p>
+                <label>Telefon No</label>
+                <input class="form-control mb-2" @bind="PhoneUsage" placeholder="5551000001" />
+                <div class="row g-2">
+                    <div class="col-4"><label>İnternet (MB)</label><input class="form-control" type="number" @bind="UsedMb" /></div>
+                    <div class="col-4"><label>SMS</label><input class="form-control" type="number" @bind="UsedSms" /></div>
+                    <div class="col-4"><label>Dakika</label><input class="form-control" type="number" @bind="UsedMin" /></div>
+                </div>
+                <button class="btn btn-danger w-100 mt-3" @onclick="Consume">Kotadan Düş</button>
+            </div>
+        </div>
+
+        <!-- HEDIYE (TRANSACTION) -->
+        <div class="col-md-6">
+            <div class="mu-card">
+                <h5 style="color: var(--good);"><i class="bi bi-gift-fill"></i> Hediye Paketi (TRANSACTION)</h5>
+                <p class="text-secondary small mb-3">Cooldown'u ileri alır ve aktif hediye paketi ekler.</p>
+                <label>Telefon No</label>
+                <input class="form-control mb-2" @bind="PhoneGift" placeholder="5551000004" />
+                <label>Hediye Paket ID</label>
+                <select class="form-select" @bind="GiftPacketId">
+                    <option value="301">301 – 1 GB İnternet</option>
+                    <option value="302">302 – 500 DK Konuşma</option>
+                    <option value="303">303 – 5 GB + 100 SMS + 100 DK</option>
+                </select>
+                <button class="btn btn-success w-100 mt-3" @onclick="GrantGift">Hediye Paketi Ata</button>
+            </div>
         </div>
     </div>
-    <!-- HEDİYE VERME EKRANI -->
-    <div class="col-md-6">
-        <div class="card p-3 border-success">
-            <h5 class="text-success">Hediye Paketi Tanımla (Transaction)</h5>
-            <input class="form-control mb-2" @bind="PhoneGift" placeholder="Telefon No" />
-            <input class="form-control mb-2" type="number" @bind="GiftPacketId" placeholder="Hediye Paket ID (Örn: 3)" />
-            <button class="btn btn-success" @onclick="GrantGift">Hediye Paketi Atama</button>
-        </div>
-    </div>
+
+    @if (Msg != null)
+    {
+        <div class="alert @(isError ? "alert-danger" : "alert-info") mt-4 fw-bold">@Msg</div>
+    }
 </div>
-@if (Msg != null)
-{
-    <div class="alert alert-info mt-3">@Msg</div>
-}
 
 @code {
-    string PhoneUsage, PhoneGift, Msg;
-    int UsedMb, UsedMin, GiftPacketId;
+    string PhoneUsage = "", PhoneGift = "", Msg;
+    int UsedMb, UsedSms, UsedMin;
+    int GiftPacketId = 301;
+    bool isError = false;
+
+    protected override void OnInitialized()
+    {
+        if (!AppState.IsLoggedIn) NavManager.NavigateTo("/login");
+    }
+
     async Task Consume()
     {
-        try { await DbService.ConsumeServiceAsync(PhoneUsage, UsedMb, 0, UsedMin); Msg = "Kota başarıyla güncellendi."; }
-        catch (Exception ex) { Msg = "Hata: " + ex.Message; }
+        isError = false; Msg = null;
+        if (string.IsNullOrWhiteSpace(PhoneUsage)) { isError = true; Msg = "Telefon numarası girin."; return; }
+        try
+        {
+            await DbService.ConsumeServiceAsync(PhoneUsage, UsedMb, UsedSms, UsedMin);
+            Msg = "✅ Kota başarıyla güncellendi.";
+        }
+        catch (Exception ex) { isError = true; Msg = "Hata: " + ex.Message; }
     }
+
     async Task GrantGift()
     {
-        try { await DbService.GrantGiftPacketAsync(PhoneGift, GiftPacketId); Msg = "Hediye paketi tanımlandı ve bekleme süresi eklendi!"; }
-        catch (Exception ex) { Msg = "Hata: " + ex.Message; }
+        isError = false; Msg = null;
+        if (string.IsNullOrWhiteSpace(PhoneGift)) { isError = true; Msg = "Telefon numarası girin."; return; }
+        try
+        {
+            await DbService.GrantGiftPacketAsync(PhoneGift, GiftPacketId);
+            Msg = "✅ Hediye paketi tanımlandı ve 30 günlük bekleme süresi eklendi!";
+        }
+        catch (Exception ex) { isError = true; Msg = "Hata: " + ex.Message; }
     }
 }
