@@ -16,8 +16,9 @@ namespace MetuCell
 #if DEBUG
             builder.Services.AddBlazorWebViewDeveloperTools();
             builder.Logging.AddDebug();
-#endif
-            // KENDİ ŞİFRENİ YAZMAYI UNUTMA
+#endif      //mobil
+            //string connectionString = "Host=10.0.2.2;Port=5432;Database=MetuCellDB;Username=postgres;Password=123;SSL Mode=Disable;Trust Server Certificate=true";
+            //desktop web
             string connectionString = "Host=localhost;Port=5432;Database=MetuCellDB;Username=postgres;Password=123";
             builder.Services.AddSingleton(new DatabaseService(connectionString));
             builder.Services.AddSingleton<AppState>();

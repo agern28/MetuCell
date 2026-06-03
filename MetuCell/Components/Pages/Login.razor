@@ -1,79 +1,41 @@
-﻿@page "/login"
-@layout MetuCell.Components.Layout.MainLayout
+@page "/login"
 @inject MetuCell.Services.DatabaseService DbService
 @inject MetuCell.Services.AppState AppState
 @inject NavigationManager NavManager
 
 <style>
-    .login-wrap {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 72vh;
-    }
-
+    .login-wrap { display: flex; align-items: center; justify-content: center; min-height: 72vh; }
     .login-card {
-        width: 100%;
-        max-width: 410px;
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 26px;
-        padding: 42px 36px;
-        box-shadow: var(--shadow);
-        position: relative;
-        overflow: hidden;
+        width: 100%; max-width: 430px;
+        background: var(--card); border: 1px solid var(--border);
+        border-radius: 26px; padding: 38px 34px; box-shadow: var(--shadow);
+        position: relative; overflow: hidden;
     }
-
-        .login-card::before {
-            content: "";
-            position: absolute;
-            top: -60px;
-            right: -60px;
-            width: 180px;
-            height: 180px;
-            border-radius: 50%;
-            background: radial-gradient(circle, rgba(34,211,238,.22), transparent 70%);
-        }
-
+    .login-card::before {
+        content: ""; position: absolute; top: -60px; right: -60px;
+        width: 180px; height: 180px; border-radius: 50%;
+        background: radial-gradient(circle, rgba(34,211,238,.22), transparent 70%);
+    }
     .login-logo {
-        font-family: 'Sora', sans-serif;
-        font-weight: 800;
-        font-size: 1.9rem;
-        color: var(--accent);
-        letter-spacing: 2px;
-        text-align: center;
+        font-family: 'Sora', sans-serif; font-weight: 800; font-size: 1.9rem;
+        color: var(--accent); letter-spacing: 2px; text-align: center;
         text-shadow: 0 0 26px rgba(34,211,238,.4);
     }
+    .login-sub { color: var(--text-muted); text-align: center; margin-bottom: 22px; font-size: .92rem; }
 
-    .login-sub {
-        color: var(--text-muted);
-        text-align: center;
-        margin-bottom: 28px;
-        font-size: .92rem;
+    .mode-seg { display: flex; gap: 8px; margin-bottom: 22px; }
+    .mode-seg button {
+        flex: 1; padding: 10px; border-radius: 12px; font-weight: 700; font-size: .88rem;
+        border: 1px solid var(--border); background: var(--bg-0); color: var(--text-muted);
+        cursor: pointer; transition: .2s; display: flex; align-items: center; justify-content: center; gap: 6px;
     }
+    .mode-seg button.on { background: rgba(34,211,238,.12); border-color: var(--accent); color: var(--accent); }
+    .mode-seg button.on.admin { background: rgba(251,191,36,.12); border-color: var(--gold); color: var(--gold); }
 
-    .field-icon {
-        position: relative;
-    }
-
-        .field-icon i {
-            position: absolute;
-            left: 14px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-muted);
-        }
-
-        .field-icon .form-control {
-            padding-left: 42px;
-        }
-
-    .hint {
-        font-size: .76rem;
-        color: #64748b;
-        text-align: center;
-        margin-top: 16px;
-    }
+    .field-icon { position: relative; }
+    .field-icon i { position: absolute; left: 14px; top: 50%; transform: translateY(-50%); color: var(--text-muted); }
+    .field-icon .form-control { padding-left: 42px; }
+    .hint { font-size: .76rem; color: #64748b; text-align: center; margin-top: 16px; }
 </style>
 
 <div class="login-wrap">
@@ -81,18 +43,38 @@
         <div class="login-logo">MetuCell</div>
         <p class="login-sub">Dijital İşlemler Merkezi'ne giriş yapın</p>
 
-        <div class="field-icon mb-3">
-            <i class="bi bi-telephone"></i>
-            <input type="text" class="form-control" @bind="Phone" placeholder="Telefon Numarası" />
-        </div>
-        <div class="field-icon mb-4">
-            <i class="bi bi-lock"></i>
-            <input type="password" class="form-control" @bind="Password" placeholder="Şifre"
-                   @onkeyup="OnKey" />
+        <div class="mode-seg">
+            <button class="@(IsAdminMode ? "" : "on")" @onclick="() => SetMode(false)">
+                <i class="bi bi-person"></i> Müşteri
+            </button>
+            <button class="@(IsAdminMode ? "on admin" : "")" @onclick="() => SetMode(true)">
+                <i class="bi bi-shield-lock"></i> Yönetici
+            </button>
         </div>
 
-        <button class="btn btn-primary w-100 p-3 fw-bold fs-6" @onclick="DoLogin" disabled="@busy">
-            @(busy ? "Kontrol ediliyor..." : "GİRİŞ YAP")
+        @if (!IsAdminMode)
+        {
+            <div class="field-icon mb-3">
+                <i class="bi bi-telephone"></i>
+                <input type="text" class="form-control" @bind="Phone" placeholder="Telefon Numarası" />
+            </div>
+        }
+        else
+        {
+            <div class="field-icon mb-3">
+                <i class="bi bi-person-badge"></i>
+                <input type="text" class="form-control" @bind="Username" placeholder="Yönetici Kullanıcı Adı" />
+            </div>
+        }
+
+        <div class="field-icon mb-4">
+            <i class="bi bi-lock"></i>
+            <input type="password" class="form-control" @bind="Password" placeholder="Şifre" @onkeyup="OnKey" />
+        </div>
+
+        <button class="btn @(IsAdminMode ? "btn-warning" : "btn-primary") w-100 p-3 fw-bold fs-6"
+                @onclick="DoLogin" disabled="@busy">
+            @(busy ? "Kontrol ediliyor..." : (IsAdminMode ? "YÖNETİCİ GİRİŞİ" : "GİRİŞ YAP"))
         </button>
 
         @if (ErrorMessage != null)
@@ -100,15 +82,30 @@
             <div class="alert alert-danger mt-3 mb-0 text-center fw-bold">@ErrorMessage</div>
         }
 
-        <div class="hint">Demo: 5551000001 / usr_ahmet_1</div>
+        <div class="hint">
+            @(IsAdminMode ? "Demo: admin / Admin!2026" : "Demo: 5551000001 / Ahmet!1234")
+        </div>
     </div>
 </div>
 
 @code {
+    bool IsAdminMode = false;
     string Phone = "5551000001";
-    string Password = "usr_ahmet_1";
+    string Username = "admin";
+    string Password = "Ahmet!1234";
     string ErrorMessage;
     bool busy = false;
+
+    // Yonetici girisi uygulama icinde sabit tutulur (orijinal veritabani degistirilmez).
+    const string ADMIN_USER = "admin";
+    const string ADMIN_PASS = "Admin!2026";
+
+    void SetMode(bool admin)
+    {
+        IsAdminMode = admin;
+        ErrorMessage = null;
+        Password = admin ? "Admin!2026" : "Ahmet!1234";
+    }
 
     async Task OnKey(KeyboardEventArgs e)
     {
@@ -121,15 +118,25 @@
         busy = true;
         try
         {
-            var user = await DbService.LoginAsync(Phone, Password);
-            if (user != null)
+            if (IsAdminMode)
             {
-                AppState.Login(Phone, $"{user.FirstName} {user.LastName}");
-                NavManager.NavigateTo("");
+                // Yonetici girisi uygulama icinde sabittir (veritabani degisikligi yok).
+                if (Username == ADMIN_USER && Password == ADMIN_PASS)
+                {
+                    AppState.LoginAdmin("Sistem Yöneticisi");
+                    NavManager.NavigateTo("admin");
+                }
+                else ErrorMessage = "Hatalı yönetici adı veya şifre!";
             }
             else
             {
-                ErrorMessage = "Hatalı telefon numarası veya şifre!";
+                var res = await DbService.LoginAsync(Phone, Password);
+                if (res != null)
+                {
+                    AppState.LoginUser(Phone, res.DisplayName, res.CustomerId, res.IsBusiness);
+                    NavManager.NavigateTo("");
+                }
+                else ErrorMessage = "Hatalı telefon numarası veya şifre!";
             }
         }
         catch (Exception ex)

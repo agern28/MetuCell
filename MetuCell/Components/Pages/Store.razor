@@ -1,0 +1,84 @@
+@page "/store"
+@inject MetuCell.Services.DatabaseService DbService
+@inject MetuCell.Services.AppState AppState
+@inject NavigationManager NavManager
+
+<style>
+    .store-hero { background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border: 1px solid var(--border); border-radius: 24px; padding: 28px 30px; margin-bottom: 28px; box-shadow: var(--shadow); }
+    .store-hero h1 { color: var(--accent); font-weight: 800; margin: 0; font-size: 1.5rem; }
+    .store-hero p { color: var(--text-muted); margin: 4px 0 0; }
+    .pkt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px; }
+    .pkt { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 22px; display: flex; flex-direction: column; gap: 10px; transition: .2s; }
+    .pkt:hover { transform: translateY(-3px); border-color: var(--accent); }
+    .pkt .type { align-self: flex-start; font-size: .72rem; font-weight: 800; letter-spacing: .5px; padding: 3px 10px; border-radius: 999px; text-transform: uppercase; }
+    .pkt .type.post { background: rgba(34,211,238,.12); color: var(--accent); }
+    .pkt .type.pre  { background: rgba(52,211,153,.12); color: var(--good); }
+    .pkt .fee { font-family: 'Sora', sans-serif; font-weight: 800; font-size: 1.5rem; color: #fff; }
+    .pkt .row-q { display: flex; justify-content: space-between; font-size: .88rem; color: var(--text-muted); }
+    .pkt .row-q b { color: var(--text); }
+    .intl { font-size: .76rem; color: var(--gold); }
+</style>
+
+<div class="animate__animated animate__fadeIn">
+    <div class="store-hero">
+        <h1><i class="bi bi-bag-fill"></i> Paket Mağazası</h1>
+        <p>@AppState.LoggedInName — hattınıza (@AppState.LoggedInPhone) yeni bir paket tanımlayın.</p>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5"><div class="spinner-border text-info"></div></div>
+    }
+    else
+    {
+        @if (Message != null)
+        {
+            <div class="alert @(isError ? "alert-danger" : "alert-success") fw-bold animate__animated animate__fadeIn">@Message</div>
+        }
+
+        <div class="pkt-grid">
+            @foreach (var p in packets)
+            {
+                <div class="pkt">
+                    <span class="type @(p.PlanType == "Post-Paid" ? "post" : "pre")">@p.PlanType</span>
+                    <div class="fee">@p.Fee.ToString("0") ₺</div>
+                    <div class="row-q"><span>İnternet</span><b>@p.InternetSize MB</b></div>
+                    <div class="row-q"><span>SMS</span><b>@p.SmsCount</b></div>
+                    <div class="row-q"><span>Dakika</span><b>@p.MinuteCount</b></div>
+                    @if (p.International) { <div class="intl"><i class="bi bi-globe"></i> Yurt dışı kullanım dâhil</div> }
+                    <button class="btn btn-primary mt-2" @onclick="() => Buy(p)" disabled="@busy">
+                        <i class="bi bi-cart-check"></i> Satın Al
+                    </button>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    List<MetuCell.Services.PacketCatalogItem> packets = new();
+    bool isLoading = true, busy = false, isError = false;
+    string Message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Sadece musteri (admin degil) erisebilir.
+        if (!AppState.IsLoggedIn) { NavManager.NavigateTo("/login"); return; }
+        if (AppState.IsAdmin) { NavManager.NavigateTo("admin"); return; }
+
+        packets = await DbService.GetBuyablePacketsAsync();
+        isLoading = false;
+    }
+
+    async Task Buy(MetuCell.Services.PacketCatalogItem p)
+    {
+        busy = true; Message = null; isError = false;
+        try
+        {
+            await DbService.PurchasePacketAsync(AppState.LoggedInPhone, p.PacketId);
+            Message = $"✅ Tamamdır, paketi aldın! {p.PlanType} paketi hattına tanımlandı.";
+        }
+        catch (Exception ex) { isError = true; Message = "Hata: " + ex.Message; }
+        finally { busy = false; }
+    }
+}

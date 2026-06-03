@@ -1,0 +1,86 @@
+@page "/my-team"
+@inject MetuCell.Services.DatabaseService DbService
+@inject MetuCell.Services.AppState AppState
+@inject NavigationManager NavManager
+
+<style>
+    .team-hero {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        border: 1px solid var(--border); border-radius: 24px;
+        padding: 28px 30px; margin-bottom: 28px; box-shadow: var(--shadow);
+    }
+    .team-hero h1 { color: var(--accent); font-weight: 800; margin: 0; font-size: 1.5rem; }
+    .team-hero p { color: var(--text-muted); margin: 4px 0 0; }
+
+    .team-table {
+        width: 100%; border-collapse: separate; border-spacing: 0 10px;
+    }
+    .team-table th {
+        color: var(--text-muted); font-size: .78rem; text-transform: uppercase;
+        letter-spacing: .5px; text-align: left; padding: 0 16px;
+    }
+    .team-table td { background: var(--card); padding: 16px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+    .team-table td:first-child { border-left: 1px solid var(--border); border-radius: 14px 0 0 14px; }
+    .team-table td:last-child  { border-right: 1px solid var(--border); border-radius: 0 14px 14px 0; }
+    .emp { font-weight: 700; }
+    .emp small { display:block; color: var(--text-muted); font-weight: 500; }
+    .chip { display:inline-block; padding: 3px 10px; border-radius: 999px; font-size:.8rem; font-weight:700; }
+    .chip.net { background: rgba(34,211,238,.12); color: var(--accent); }
+    .chip.sms { background: rgba(251,191,36,.12); color: var(--gold); }
+    .chip.min { background: rgba(52,211,153,.12); color: var(--good); }
+</style>
+
+<div class="animate__animated animate__fadeIn">
+    <div class="team-hero">
+        <h1><i class="bi bi-people-fill"></i> Çalışanlarım</h1>
+        <p>@AppState.LoggedInName — kurumunuza bağlı hatlar ve güncel kullanımları.</p>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-5"><div class="spinner-border text-info"></div></div>
+    }
+    else if (lines == null || lines.Count == 0)
+    {
+        <div class="alert alert-info">Kurumunuza bağlı aktif hat bulunamadı.</div>
+    }
+    else
+    {
+        <table class="team-table">
+            <thead>
+                <tr>
+                    <th>Çalışan</th><th>Telefon</th>
+                    <th>İnternet</th><th>SMS</th><th>Dakika</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var l in lines)
+                {
+                    <tr>
+                        <td class="emp">@l.FirstName @l.LastName</td>
+                        <td>@l.Phone</td>
+                        <td><span class="chip net">@l.InternetLeft MB</span></td>
+                        <td><span class="chip sms">@l.SmsLeft SMS</span></td>
+                        <td><span class="chip min">@l.MinuteLeft DK</span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@code {
+    List<MetuCell.Services.CorporateLine> lines;
+    bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Yetki: giris yapmis, yonetici olmayan ve KURUMSAL musteri olmali.
+        if (!AppState.IsLoggedIn) { NavManager.NavigateTo("/login"); return; }
+        if (AppState.IsAdmin)     { NavManager.NavigateTo("admin"); return; }
+        if (!AppState.IsBusiness) { NavManager.NavigateTo(""); return; } // bireysel goremez
+
+        lines = await DbService.GetCorporateLinesAsync(AppState.CustomerId);
+        isLoading = false;
+    }
+}

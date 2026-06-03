@@ -1,0 +1,88 @@
+@page "/admin"
+@inject MetuCell.Services.AppState AppState
+@inject NavigationManager NavManager
+
+<style>
+    .admin-hero {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        border: 1px solid var(--border); border-radius: 26px;
+        padding: 34px 30px; margin-bottom: 34px; box-shadow: var(--shadow);
+        display: flex; align-items: center; gap: 18px;
+    }
+    .admin-hero .badge-ic {
+        width: 58px; height: 58px; border-radius: 16px; flex: none;
+        display: flex; align-items: center; justify-content: center;
+        background: rgba(251,191,36,.14); color: var(--gold); font-size: 1.7rem;
+        border: 1px solid rgba(251,191,36,.4);
+    }
+    .admin-hero h1 { color: var(--gold); font-weight: 800; margin: 0; font-size: 1.6rem; }
+    .admin-hero p { color: var(--text-muted); margin: 2px 0 0; }
+
+    .admin-grid {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 22px;
+    }
+    .admin-tile {
+        background: var(--card); border: 1px solid var(--border); border-radius: 20px;
+        padding: 26px; cursor: pointer; transition: .22s; text-decoration: none; color: var(--text);
+        display: flex; flex-direction: column; gap: 10px;
+    }
+    .admin-tile:hover { transform: translateY(-4px); border-color: var(--accent); color: var(--text); }
+    .admin-tile .ic { font-size: 1.9rem; color: var(--accent); }
+    .admin-tile.gold .ic { color: var(--gold); }
+    .admin-tile .ttl { font-weight: 800; font-size: 1.1rem; }
+    .admin-tile .dsc { color: var(--text-muted); font-size: .88rem; }
+    .tag {
+        align-self: flex-start; font-size: .68rem; font-weight: 800; letter-spacing: .5px;
+        padding: 2px 8px; border-radius: 999px; text-transform: uppercase;
+        background: rgba(34,211,238,.12); color: var(--accent); border: 1px solid rgba(34,211,238,.3);
+    }
+</style>
+
+<div class="animate__animated animate__fadeIn">
+    <div class="admin-hero">
+        <div class="badge-ic"><i class="bi bi-shield-lock-fill"></i></div>
+        <div>
+            <h1>Yönetici Paneli</h1>
+            <p>Hoş geldin, @AppState.LoggedInName. Tüm operasyonel işlemlere buradan erişebilirsin.</p>
+        </div>
+    </div>
+
+    <div class="admin-grid">
+        <a class="admin-tile" href="add-customer">
+            <div class="ic"><i class="bi bi-person-plus-fill"></i></div>
+            <span class="tag">INSERT</span>
+            <div class="ttl">Müşteri Kaydı</div>
+            <div class="dsc">Yeni bireysel veya kurumsal hesap sahibi tanımla.</div>
+        </a>
+
+        <a class="admin-tile" href="assign-line">
+            <div class="ic"><i class="bi bi-sim-fill"></i></div>
+            <span class="tag">INSERT</span>
+            <div class="ttl">Hat Provizyon</div>
+            <div class="dsc">SIM kartı ve numarayı bir kullanıcıya bağla.</div>
+        </a>
+
+        <a class="admin-tile" href="manage-usage">
+            <div class="ic"><i class="bi bi-sliders"></i></div>
+            <span class="tag">UPDATE</span>
+            <div class="ttl">Kullanım & Promosyon</div>
+            <div class="dsc">Kota düş veya hatta hediye paketi tanımla.</div>
+        </a>
+
+        <a class="admin-tile gold" href="reports">
+            <div class="ic"><i class="bi bi-bar-chart-fill"></i></div>
+            <span class="tag">QUERY / DELETE</span>
+            <div class="ttl">Sistem Raporları</div>
+            <div class="dsc">Kurumsal kullanıcılar, toplam fatura, PUK ve bakım işlemleri.</div>
+        </a>
+    </div>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        // Yetki kontrolu: sadece yonetici erisebilir.
+        if (!AppState.IsLoggedIn) NavManager.NavigateTo("/login");
+        else if (!AppState.IsAdmin) NavManager.NavigateTo("");
+    }
+}

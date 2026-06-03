@@ -1,69 +1,29 @@
-﻿@page "/add-customer"
+@page "/add-customer"
 @inject MetuCell.Services.DatabaseService DbService
 @inject MetuCell.Services.AppState AppState
 @inject NavigationManager NavManager
 
 <style>
-    .crm-shell {
-        max-width: 720px;
-        margin: 0 auto;
-    }
-
-    .crm-panel {
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 22px;
-        padding: 34px;
-        box-shadow: var(--shadow);
-    }
-
-    .panel-title {
-        font-weight: 800;
-        color: var(--accent);
-        margin-bottom: 4px;
-    }
-
-    .panel-desc {
-        color: var(--text-muted);
-        font-size: .9rem;
-        margin-bottom: 26px;
-    }
-
-    .seg {
-        display: flex;
-        gap: 10px;
-        margin-bottom: 24px;
-    }
-
-        .seg button {
-            flex: 1;
-            padding: 12px;
-            border-radius: 12px;
-            font-weight: 700;
-            border: 1px solid var(--border);
-            background: var(--bg-0);
-            color: var(--text-muted);
-            cursor: pointer;
-            transition: .2s;
-        }
-
-            .seg button.on {
-                background: rgba(34,211,238,.12);
-                border-color: var(--accent);
-                color: var(--accent);
-            }
+    .crm-shell { max-width: 760px; margin: 0 auto; }
+    .crm-panel { background: var(--card); border: 1px solid var(--border); border-radius: 22px; padding: 34px; box-shadow: var(--shadow); }
+    .panel-title { font-weight: 800; color: var(--accent); margin-bottom: 4px; }
+    .panel-desc { color: var(--text-muted); font-size: .9rem; margin-bottom: 26px; }
+    .seg { display: flex; gap: 10px; margin-bottom: 24px; }
+    .seg button { flex: 1; padding: 12px; border-radius: 12px; font-weight: 700; border: 1px solid var(--border); background: var(--bg-0); color: var(--text-muted); cursor: pointer; transition: .2s; }
+    .seg button.on { background: rgba(34,211,238,.12); border-color: var(--accent); color: var(--accent); }
+    .sec-label { color: var(--accent); font-weight: 800; letter-spacing: .4px; }
 </style>
 
 <div class="crm-shell animate__animated animate__fadeIn">
     <div class="crm-panel">
         <h3 class="panel-title"><i class="bi bi-person-plus-fill"></i> Yeni Müşteri Kaydı</h3>
-        <p class="panel-desc">Faturadan sorumlu hesap sahibini (Account Owner) sisteme tanımlayın.</p>
+        <p class="panel-desc">Hesap sahibi oluşturulurken sisteme otomatik olarak ilk SIM ve hat tanımlanır.</p>
 
         <div class="seg">
-            <button class="@(CustomerType == "Individual" ? "on" : "")" @onclick='() => CustomerType = "Individual"'>
+            <button class="@(CustomerType=="Individual"?"on":"")" @onclick='() => CustomerType="Individual"'>
                 <i class="bi bi-person"></i> Bireysel
             </button>
-            <button class="@(CustomerType == "Business" ? "on" : "")" @onclick='() => CustomerType = "Business"'>
+            <button class="@(CustomerType=="Business"?"on":"")" @onclick='() => CustomerType="Business"'>
                 <i class="bi bi-building"></i> Kurumsal
             </button>
         </div>
@@ -71,7 +31,7 @@
         <div class="row g-3">
             <div class="col-md-8"><label>Adres</label><input class="form-control" @bind="Address" /></div>
             <div class="col-md-4"><label>E-posta</label><input class="form-control" @bind="Email" /></div>
-            <div class="col-md-6"><label>Hesap Şifresi</label><input type="password" class="form-control" @bind="Password" placeholder="Müşteri portal şifresi" /></div>
+            <div class="col-md-6"><label>Hesap Şifresi</label><input type="password" class="form-control" @bind="Password" placeholder="Giriş şifresi" /></div>
         </div>
 
         <hr class="my-4" />
@@ -86,12 +46,11 @@
                 <div class="col-md-6">
                     <label>Cinsiyet</label>
                     <select class="form-select" @bind="Gender">
-                        <option value="Male">Erkek</option>
-                        <option value="Female">Kadın</option>
-                        <option value="Other">Diğer</option>
+                        <option value="Male">Erkek</option><option value="Female">Kadın</option><option value="Other">Diğer</option>
                     </select>
                 </div>
             </div>
+            <p class="text-secondary small mt-3 mb-0"><i class="bi bi-info-circle"></i> İlk hat doğrudan müşterinin kendi adına (kullanıcı = müşteri) açılır.</p>
         }
         else
         {
@@ -100,10 +59,43 @@
                 <div class="col-md-6"><label>Vergi No</label><input class="form-control" @bind="TaxNumber" /></div>
                 <div class="col-md-6"><label>Ticaret Sicil No</label><input class="form-control" @bind="BusinessNumber" /></div>
             </div>
+            <hr class="my-4" />
+            <div class="sec-label mb-2"><i class="bi bi-person-vcard"></i> İlk Hat Kullanıcısı (Çalışan / Yetkili)</div>
+            <div class="row g-3">
+                <div class="col-md-6"><label>Çalışan TRNC ID</label><input class="form-control" @bind="EmpTrnc" /></div>
+                <div class="col-md-6"><label>Doğum Tarihi</label><input class="form-control" type="date" @bind="EmpDob" /></div>
+                <div class="col-md-6"><label>Ad</label><input class="form-control" @bind="EmpFirst" /></div>
+                <div class="col-md-6"><label>Soyad</label><input class="form-control" @bind="EmpLast" /></div>
+                <div class="col-md-6">
+                    <label>Cinsiyet</label>
+                    <select class="form-select" @bind="EmpGender">
+                        <option value="Male">Erkek</option><option value="Female">Kadın</option><option value="Other">Diğer</option>
+                    </select>
+                </div>
+            </div>
         }
 
+        <hr class="my-4" />
+        <div class="sec-label mb-2"><i class="bi bi-sim"></i> SIM Bilgisi (kalanlar otomatik atanır)</div>
+        <div class="row g-3">
+            <div class="col-md-6">
+                <label>Şebeke (Network Range)</label>
+                <select class="form-select" @bind="NetworkRange">
+                    <option value="2G">2G</option><option value="3G">3G</option>
+                    <option value="4G">4G</option><option value="5G">5G</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label>SIM Tipi</label>
+                <select class="form-select" @bind="SimType">
+                    <option value="Standard">Standard</option><option value="Micro">Micro</option>
+                    <option value="Nano">Nano</option><option value="eSIM">eSIM</option>
+                </select>
+            </div>
+        </div>
+
         <button class="btn btn-primary mt-4 px-4 py-2" @onclick="SaveCustomer" disabled="@busy">
-            @(busy ? "Kaydediliyor..." : "Sisteme Kaydet")
+            @(busy ? "Kaydediliyor..." : "Müşteriyi ve İlk Hattı Oluştur")
         </button>
 
         @if (!string.IsNullOrEmpty(Message))
@@ -116,49 +108,56 @@
 @code {
     string CustomerType = "Individual";
     string Address = "", Email = "", Password = "", Message;
+    // Bireysel
     string TrncId = "", FirstName = "", LastName = "", Gender = "Male";
-    string CompanyName = "", TaxNumber = "", BusinessNumber = "";
     DateTime Dob = DateTime.Today.AddYears(-25);
+    // Kurumsal
+    string CompanyName = "", TaxNumber = "", BusinessNumber = "";
+    string EmpTrnc = "", EmpFirst = "", EmpLast = "", EmpGender = "Male";
+    DateTime EmpDob = DateTime.Today.AddYears(-30);
+    // SIM
+    string NetworkRange = "5G", SimType = "eSIM";
     bool busy = false, isError = false;
 
     protected override void OnInitialized()
     {
         if (!AppState.IsLoggedIn) NavManager.NavigateTo("/login");
+        else if (!AppState.IsAdmin) NavManager.NavigateTo(""); // sadece yonetici
     }
 
     async Task SaveCustomer()
     {
         isError = false; Message = null;
-
         if (string.IsNullOrWhiteSpace(Address) || string.IsNullOrWhiteSpace(Email) || string.IsNullOrWhiteSpace(Password))
         { isError = true; Message = "Adres, e-posta ve şifre zorunludur."; return; }
 
         busy = true;
         try
         {
+            string phone;
             if (CustomerType == "Individual")
             {
                 if (string.IsNullOrWhiteSpace(TrncId) || string.IsNullOrWhiteSpace(FirstName))
-                { isError = true; Message = "TRNC ID ve Ad zorunludur."; return; }
+                { isError = true; Message = "TRNC ID ve Ad zorunludur."; busy = false; return; }
 
-                await DbService.AddIndividualCustomerAsync(Address, Email, Password, TrncId, FirstName, LastName, Gender, Dob);
+                phone = await DbService.AddIndividualCustomerAsync(
+                    Address, Email, Password, TrncId, FirstName, LastName, Gender, Dob, NetworkRange, SimType);
             }
             else
             {
-                if (string.IsNullOrWhiteSpace(CompanyName) || string.IsNullOrWhiteSpace(TaxNumber))
-                { isError = true; Message = "Şirket adı ve vergi no zorunludur."; return; }
+                if (string.IsNullOrWhiteSpace(CompanyName) || string.IsNullOrWhiteSpace(TaxNumber) || string.IsNullOrWhiteSpace(EmpTrnc) || string.IsNullOrWhiteSpace(EmpFirst))
+                { isError = true; Message = "Şirket adı, vergi no ve ilk çalışan bilgileri zorunludur."; busy = false; return; }
 
-                // DOGRU SIRA: (address, email, password, businessNo, taxNo, companyName)
-                await DbService.AddBusinessCustomerAsync(Address, Email, Password, BusinessNumber, TaxNumber, CompanyName);
+                phone = await DbService.AddBusinessCustomerAsync(
+                    Address, Email, Password, BusinessNumber, TaxNumber, CompanyName,
+                    NetworkRange, SimType, EmpTrnc, EmpFirst, EmpLast, EmpGender, EmpDob);
             }
-            Message = "✅ Müşteri başarıyla eklendi!";
+
+            Message = $"✅ Müşteri oluşturuldu ve ilk hat atandı. Yeni numara: {phone}";
             Address = Email = Password = TrncId = FirstName = LastName = "";
-            CompanyName = TaxNumber = BusinessNumber = "";
+            CompanyName = TaxNumber = BusinessNumber = EmpTrnc = EmpFirst = EmpLast = "";
         }
-        catch (Exception ex)
-        {
-            isError = true; Message = "Hata: " + ex.Message;
-        }
+        catch (Exception ex) { isError = true; Message = "Hata: " + ex.Message; }
         finally { busy = false; }
     }
 }

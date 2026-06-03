@@ -1,25 +1,12 @@
-﻿@page "/manage-usage"
+@page "/manage-usage"
 @inject MetuCell.Services.DatabaseService DbService
 @inject MetuCell.Services.AppState AppState
 @inject NavigationManager NavManager
 
 <style>
-    .mu-shell {
-        max-width: 980px;
-        margin: 0 auto;
-    }
-
-    .mu-card {
-        background: var(--card);
-        border: 1px solid var(--border);
-        border-radius: 20px;
-        padding: 26px;
-        height: 100%;
-    }
-
-        .mu-card h5 {
-            font-weight: 800;
-        }
+    .mu-shell { max-width: 980px; margin: 0 auto; }
+    .mu-card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 26px; height: 100%; }
+    .mu-card h5 { font-weight: 800; }
 </style>
 
 <div class="mu-shell animate__animated animate__fadeIn">
@@ -78,6 +65,7 @@
     protected override void OnInitialized()
     {
         if (!AppState.IsLoggedIn) NavManager.NavigateTo("/login");
+        else if (!AppState.IsAdmin) NavManager.NavigateTo(""); // sadece yonetici
     }
 
     async Task Consume()
@@ -86,8 +74,8 @@
         if (string.IsNullOrWhiteSpace(PhoneUsage)) { isError = true; Msg = "Telefon numarası girin."; return; }
         try
         {
-            await DbService.ConsumeServiceAsync(PhoneUsage, UsedMb, UsedSms, UsedMin);
-            Msg = "✅ Kota başarıyla güncellendi.";
+            var result = await DbService.ConsumeServiceAsync(PhoneUsage, UsedMb, UsedSms, UsedMin);
+            Msg = "✅ " + result;
         }
         catch (Exception ex) { isError = true; Msg = "Hata: " + ex.Message; }
     }

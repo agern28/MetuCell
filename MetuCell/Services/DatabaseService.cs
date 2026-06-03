@@ -1,4 +1,4 @@
-﻿using Npgsql;
+using Npgsql;
 using MetuCell.Models;
 using System;
 using System.Collections.Generic;
@@ -8,174 +8,403 @@ namespace MetuCell.Services
 {
     // ==================================================================================
     //  MetuCell - Data Access Layer (Npgsql / PostgreSQL)
-    //  NOT: Tum tablo ve kolon isimleri "CNG 352 ... Query Scripts.sql" dosyasindaki
-    //  GERCEK semayla birebir uyumludur. PostgreSQL tirnaksiz isimleri kucuk harfe
-    //  katladigindan, kolonlari snake_case (kucuk harf) yaziyoruz. Yalnizca "User"
-    //  tablosu CREATE'te tirnakli ve buyuk 'U' ile olusturuldugu icin "User" seklinde
-    //  tirnak icinde kullanilmak zorundadir.
+    //  Tum tablo/kolon isimleri gercek semayla birebir (snake_case; yalniz "User" tirnakli).
     // ==================================================================================
     public class DatabaseService
     {
         private readonly string _connectionString;
+        private static readonly Random _rng = new Random();
         public DatabaseService(string connectionString) => _connectionString = connectionString;
 
         // ==========================================
-        // 1. GIRIS VE KULLANICI ISLEMLERI (QUERY)
+        // 1. GIRIS (QUERY)
         // ==========================================
-        public async Task<UserReport> LoginAsync(string phone, string password)
+        public async Task<LoginResult> LoginAsync(string phone, string password)
         {
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
             var cmd = new NpgsqlCommand(
-                @"SELECT first_name, last_name
-                  FROM ""User""
-                  WHERE phone_number = @p AND password = @pw", conn);
+                @"SELECT c.customerid,
+                         (bc.customerid IS NOT NULL) AS is_business,
+                         COALESCE(bc.company_name, u.first_name || ' ' || u.last_name, 'Müşteri') AS display_name
+                  FROM mobile_line ml
+                  JOIN sim_card s ON ml.sim_id    = s.sim_id
+                  JOIN customer c ON s.customerid = c.customerid
+                  LEFT JOIN business_customer bc ON bc.customerid = c.customerid
+                  LEFT JOIN ""User"" u ON u.phone_number = ml.phone_number
+                  WHERE ml.phone_number = @p AND c.password = @pw", conn);
             cmd.Parameters.AddWithValue("p", phone);
             cmd.Parameters.AddWithValue("pw", password);
             await using var r = await cmd.ExecuteReaderAsync();
             return await r.ReadAsync()
-                ? new UserReport { FirstName = r.GetString(0), LastName = r.GetString(1) }
+                ? new LoginResult { CustomerId = r.GetInt32(0), IsBusiness = r.GetBoolean(1), DisplayName = r.GetString(2) }
                 : null;
         }
 
         // ==========================================
-        // 2. TRANSACTION: DATA ENTRY (INSERT)
+        //  ORTAK YARDIMCILAR (otomatik SIM / telefon / hat+user)
         // ==========================================
 
-        // --- Bireysel Musteri Ekleme (Customer + Individual_Customer) ---
-        public async Task AddIndividualCustomerAsync(string address, string email, string password,
-            string trnId, string firstName, string lastName, string gender, DateTime dob)
+        // Otomatik benzersiz telefon numarasi: en buyuk numarayi sayisal alip +1.
+        private async Task<string> GenerateNextPhoneAsync(NpgsqlConnection conn, NpgsqlTransaction tx)
+        {
+            var cmd = new NpgsqlCommand(
+                "SELECT COALESCE(MAX(CAST(phone_number AS BIGINT)), 5550000000) + 1 FROM mobile_line", conn, tx);
+            return Convert.ToInt64(await cmd.ExecuteScalarAsync()).ToString();
+        }
+
+        // Yeni SIM kart uretir (SIM_ID = MAX+1, PUK rastgele, sahibi = customerId).
+        // Disaridan yalnizca Network_Range ve SIM_TYPE gelir (domain'den secilmis).
+        private async Task<int> CreateSimCardAsync(NpgsqlConnection conn, NpgsqlTransaction tx,
+            int customerId, string networkRange, string simType)
+        {
+            var idCmd = new NpgsqlCommand("SELECT COALESCE(MAX(sim_id), 5000) + 1 FROM sim_card", conn, tx);
+            int simId = Convert.ToInt32(await idCmd.ExecuteScalarAsync());
+            string puk = _rng.Next(10000000, 99999999).ToString();
+
+            var cmd = new NpgsqlCommand(
+                @"INSERT INTO sim_card (sim_id, network_range, sim_type, puk_no, customerid)
+                  VALUES (@sid, @nr, @st, @puk, @cid)", conn, tx);
+            cmd.Parameters.AddWithValue("sid", simId);
+            cmd.Parameters.AddWithValue("nr", networkRange);
+            cmd.Parameters.AddWithValue("st", simType);
+            cmd.Parameters.AddWithValue("puk", puk);
+            cmd.Parameters.AddWithValue("cid", customerId);
+            await cmd.ExecuteNonQueryAsync();
+            return simId;
+        }
+
+        // Hat (Mobile_Line) + kullanici ("User") olusturur.
+        private async Task CreateLineAndUserAsync(NpgsqlConnection conn, NpgsqlTransaction tx,
+            string phone, int simId, string trnId, string firstName, string lastName,
+            string gender, DateTime dob, string password)
+        {
+            var lineCmd = new NpgsqlCommand(
+                @"INSERT INTO mobile_line (phone_number, activation_date, sim_id)
+                  VALUES (@p, CURRENT_DATE, @sim)", conn, tx);
+            lineCmd.Parameters.AddWithValue("p", phone);
+            lineCmd.Parameters.AddWithValue("sim", simId);
+            await lineCmd.ExecuteNonQueryAsync();
+
+            var userCmd = new NpgsqlCommand(
+                @"INSERT INTO ""User"" (trnid, phone_number, first_name, last_name, gender, dob, password)
+                  VALUES (@trn, @p, @fn, @ln, @g, @dob, @pw)", conn, tx);
+            userCmd.Parameters.AddWithValue("trn", trnId);
+            userCmd.Parameters.AddWithValue("p", phone);
+            userCmd.Parameters.AddWithValue("fn", firstName);
+            userCmd.Parameters.AddWithValue("ln", lastName);
+            userCmd.Parameters.AddWithValue("g", gender);
+            userCmd.Parameters.AddWithValue("dob", dob);
+            userCmd.Parameters.AddWithValue("pw", password);
+            await userCmd.ExecuteNonQueryAsync();
+        }
+
+        // ==========================================
+        // 2. MUSTERI EKLEME (+ otomatik ilk hat) - INSERT/TRANSACTION
+        // ==========================================
+
+        // Bireysel: Customer + Individual_Customer + otomatik SIM + otomatik hat;
+        // ilk hattin kullanicisi MUSTERININ KENDISI (kendi TRNC ID/adi ile).
+        // Donus: otomatik uretilen telefon numarasi.
+        public async Task<string> AddIndividualCustomerAsync(string address, string email, string password,
+            string trnId, string firstName, string lastName, string gender, DateTime dob,
+            string networkRange, string simType)
         {
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
             await using var tx = await conn.BeginTransactionAsync();
             try
             {
-                // CustomerID SERIAL degil -> bir sonraki ID'yi biz uretiyoruz
-                var idCmd = new NpgsqlCommand(
-                    "SELECT COALESCE(MAX(customerid), 0) + 1 FROM customer", conn, tx);
-                int customerId = Convert.ToInt32(await idCmd.ExecuteScalarAsync());
+                int customerId = Convert.ToInt32(await new NpgsqlCommand(
+                    "SELECT COALESCE(MAX(customerid),0)+1 FROM customer", conn, tx).ExecuteScalarAsync());
 
-                var cmd1 = new NpgsqlCommand(
-                    @"INSERT INTO customer (customerid, address, email, password)
-                      VALUES (@id, @a, @e, @pw)", conn, tx);
-                cmd1.Parameters.AddWithValue("id", customerId);
-                cmd1.Parameters.AddWithValue("a", address);
-                cmd1.Parameters.AddWithValue("e", email);
-                cmd1.Parameters.AddWithValue("pw", password);
-                await cmd1.ExecuteNonQueryAsync();
+                var c1 = new NpgsqlCommand(
+                    @"INSERT INTO customer (customerid, address, email, password) VALUES (@id,@a,@e,@pw)", conn, tx);
+                c1.Parameters.AddWithValue("id", customerId);
+                c1.Parameters.AddWithValue("a", address);
+                c1.Parameters.AddWithValue("e", email);
+                c1.Parameters.AddWithValue("pw", password);
+                await c1.ExecuteNonQueryAsync();
 
-                var cmd2 = new NpgsqlCommand(
+                var c2 = new NpgsqlCommand(
                     @"INSERT INTO individual_customer (customerid, trnid, first_name, last_name, gender, dob)
-                      VALUES (@id, @trn, @fn, @ln, @g, @dob)", conn, tx);
-                cmd2.Parameters.AddWithValue("id", customerId);
-                cmd2.Parameters.AddWithValue("trn", trnId);
-                cmd2.Parameters.AddWithValue("fn", firstName);
-                cmd2.Parameters.AddWithValue("ln", lastName);
-                cmd2.Parameters.AddWithValue("g", gender);
-                cmd2.Parameters.AddWithValue("dob", dob);
-                await cmd2.ExecuteNonQueryAsync();
+                      VALUES (@id,@trn,@fn,@ln,@g,@dob)", conn, tx);
+                c2.Parameters.AddWithValue("id", customerId);
+                c2.Parameters.AddWithValue("trn", trnId);
+                c2.Parameters.AddWithValue("fn", firstName);
+                c2.Parameters.AddWithValue("ln", lastName);
+                c2.Parameters.AddWithValue("g", gender);
+                c2.Parameters.AddWithValue("dob", dob);
+                await c2.ExecuteNonQueryAsync();
+
+                int simId = await CreateSimCardAsync(conn, tx, customerId, networkRange, simType);
+                string phone = await GenerateNextPhoneAsync(conn, tx);
+                // Kullanici = musterinin kendisi
+                await CreateLineAndUserAsync(conn, tx, phone, simId, trnId, firstName, lastName, gender, dob, password);
 
                 await tx.CommitAsync();
+                return phone;
             }
             catch { await tx.RollbackAsync(); throw; }
         }
 
-        // --- Kurumsal Musteri Ekleme (Customer + Business_Customer) ---
-        public async Task AddBusinessCustomerAsync(string address, string email, string password,
-            string businessNo, string taxNo, string companyName)
+        // Kurumsal: Customer + Business_Customer + otomatik SIM + otomatik hat;
+        // sirket bir "kisi" olamayacagi icin ilk hattin kullanicisi ILK CALISAN (yetkili) olur.
+        public async Task<string> AddBusinessCustomerAsync(string address, string email, string password,
+            string businessNo, string taxNo, string companyName,
+            string networkRange, string simType,
+            string empTrnId, string empFirstName, string empLastName, string empGender, DateTime empDob)
         {
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
             await using var tx = await conn.BeginTransactionAsync();
             try
             {
-                var idCmd = new NpgsqlCommand(
-                    "SELECT COALESCE(MAX(customerid), 0) + 1 FROM customer", conn, tx);
-                int customerId = Convert.ToInt32(await idCmd.ExecuteScalarAsync());
+                int customerId = Convert.ToInt32(await new NpgsqlCommand(
+                    "SELECT COALESCE(MAX(customerid),0)+1 FROM customer", conn, tx).ExecuteScalarAsync());
 
-                var cmd1 = new NpgsqlCommand(
-                    @"INSERT INTO customer (customerid, address, email, password)
-                      VALUES (@id, @a, @e, @pw)", conn, tx);
-                cmd1.Parameters.AddWithValue("id", customerId);
-                cmd1.Parameters.AddWithValue("a", address);
-                cmd1.Parameters.AddWithValue("e", email);
-                cmd1.Parameters.AddWithValue("pw", password);
-                await cmd1.ExecuteNonQueryAsync();
+                var c1 = new NpgsqlCommand(
+                    @"INSERT INTO customer (customerid, address, email, password) VALUES (@id,@a,@e,@pw)", conn, tx);
+                c1.Parameters.AddWithValue("id", customerId);
+                c1.Parameters.AddWithValue("a", address);
+                c1.Parameters.AddWithValue("e", email);
+                c1.Parameters.AddWithValue("pw", password);
+                await c1.ExecuteNonQueryAsync();
 
-                var cmd2 = new NpgsqlCommand(
+                var c2 = new NpgsqlCommand(
                     @"INSERT INTO business_customer (customerid, business_number, tax_number, company_name)
-                      VALUES (@id, @bno, @tax, @cname)", conn, tx);
-                cmd2.Parameters.AddWithValue("id", customerId);
-                cmd2.Parameters.AddWithValue("bno", businessNo);
-                cmd2.Parameters.AddWithValue("tax", taxNo);
-                cmd2.Parameters.AddWithValue("cname", companyName);
-                await cmd2.ExecuteNonQueryAsync();
+                      VALUES (@id,@bno,@tax,@cname)", conn, tx);
+                c2.Parameters.AddWithValue("id", customerId);
+                c2.Parameters.AddWithValue("bno", businessNo);
+                c2.Parameters.AddWithValue("tax", taxNo);
+                c2.Parameters.AddWithValue("cname", companyName);
+                await c2.ExecuteNonQueryAsync();
+
+                int simId = await CreateSimCardAsync(conn, tx, customerId, networkRange, simType);
+                string phone = await GenerateNextPhoneAsync(conn, tx);
+                // Kullanici = ilk calisan; User sifresi = hesap (Customer) sifresi
+                await CreateLineAndUserAsync(conn, tx, phone, simId, empTrnId, empFirstName, empLastName, empGender, empDob, password);
 
                 await tx.CommitAsync();
+                return phone;
             }
             catch { await tx.RollbackAsync(); throw; }
         }
 
-        // --- Yeni Hat Provizyonu (Mobile_Line + "User") ---
-        public async Task ProvisionMobileLineAsync(string phone, int simId, string trnId,
-            string firstName, string lastName, string gender, DateTime dob, string password)
+        // ==========================================
+        // 2b. MEVCUT MUSTERIYE YENI HAT EKLEME (admin) - INSERT/TRANSACTION
+        //  Once SIM uretilir, sonra hat "kendisi" mi yoksa "baska kullanici" mi diye ayrilir.
+        // ==========================================
+        public async Task<string> ProvisionLineForCustomerAsync(int customerId, string networkRange, string simType,
+            bool forSelf, string trnId, string firstName, string lastName, string gender, DateTime dob)
         {
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
             await using var tx = await conn.BeginTransactionAsync();
             try
             {
-                // gift_cooldown_timestamp NOT NULL ama DEFAULT CURRENT_TIMESTAMP -> belirtmeye gerek yok
-                var cmd1 = new NpgsqlCommand(
-                    @"INSERT INTO mobile_line (phone_number, activation_date, sim_id)
-                      VALUES (@p, CURRENT_DATE, @sim)", conn, tx);
-                cmd1.Parameters.AddWithValue("p", phone);
-                cmd1.Parameters.AddWithValue("sim", simId);
-                await cmd1.ExecuteNonQueryAsync();
+                // Musteriyi dogrula + sifresini ve tipini al
+                string custPassword = null; bool isBusiness = false;
+                var info = new NpgsqlCommand(
+                    @"SELECT c.password, (bc.customerid IS NOT NULL)
+                      FROM customer c LEFT JOIN business_customer bc ON bc.customerid = c.customerid
+                      WHERE c.customerid = @cid", conn, tx);
+                info.Parameters.AddWithValue("cid", customerId);
+                await using (var ir = await info.ExecuteReaderAsync())
+                {
+                    if (!await ir.ReadAsync())
+                        throw new Exception($"Müşteri bulunamadı (ID: {customerId}).");
+                    custPassword = ir.GetString(0);
+                    isBusiness = ir.GetBoolean(1);
+                }
 
-                var cmd2 = new NpgsqlCommand(
-                    @"INSERT INTO ""User"" (trnid, phone_number, first_name, last_name, gender, dob, password)
-                      VALUES (@trn, @p, @fn, @ln, @g, @dob, @pw)", conn, tx);
-                cmd2.Parameters.AddWithValue("trn", trnId);
-                cmd2.Parameters.AddWithValue("p", phone);
-                cmd2.Parameters.AddWithValue("fn", firstName);
-                cmd2.Parameters.AddWithValue("ln", lastName);
-                cmd2.Parameters.AddWithValue("g", gender);
-                cmd2.Parameters.AddWithValue("dob", dob);
-                cmd2.Parameters.AddWithValue("pw", password);
-                await cmd2.ExecuteNonQueryAsync();
+                // "Kendisi" secildiyse: kullanici bilgilerini Individual_Customer'dan al
+                if (forSelf)
+                {
+                    if (isBusiness)
+                        throw new Exception("Kurumsal müşteri için 'kendisi' seçilemez. Lütfen bir çalışan tanımlayın.");
+
+                    var ind = new NpgsqlCommand(
+                        @"SELECT trnid, first_name, last_name, gender, dob
+                          FROM individual_customer WHERE customerid = @cid", conn, tx);
+                    ind.Parameters.AddWithValue("cid", customerId);
+                    await using var rr = await ind.ExecuteReaderAsync();
+                    if (!await rr.ReadAsync())
+                        throw new Exception("Bireysel müşteri bilgisi bulunamadı.");
+                    trnId = rr.GetString(0);
+                    firstName = rr.GetString(1);
+                    lastName = rr.GetString(2);
+                    gender = rr.GetString(3);
+                    dob = rr.GetDateTime(4);
+                }
+
+                int simId = await CreateSimCardAsync(conn, tx, customerId, networkRange, simType);
+                string phone = await GenerateNextPhoneAsync(conn, tx);
+
+                try
+                {
+                    await CreateLineAndUserAsync(conn, tx, phone, simId, trnId, firstName, lastName, gender, dob, custPassword);
+                }
+                catch (PostgresException pe) when (pe.SqlState == "23505") // unique_violation (User PK = TRNID)
+                {
+                    throw new Exception("Bu TRNC ID ile zaten bir kullanıcı var. Aynı kişi ikinci bir hatta kullanıcı olamaz; farklı bir kullanıcı tanımlayın.");
+                }
 
                 await tx.CommitAsync();
+                return phone;
             }
             catch { await tx.RollbackAsync(); throw; }
         }
 
         // ==========================================
-        // 3. TRANSACTION: DATA UPDATE / DELETE
+        // 3. KULLANIM DUSME (UPDATE) - tek paketten basla, yetmezse sonrakine tas
         // ==========================================
-
-        // --- Kullanim Dusme (UPDATE) ---
-        public async Task ConsumeServiceAsync(string phone, int mbUsed, int smsUsed, int minUsed)
+        public async Task<string> ConsumeServiceAsync(string phone, int mbUsed, int smsUsed, int minUsed)
         {
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            await using var tx = await conn.BeginTransactionAsync();
+            try
+            {
+                // Aktif paketleri once suresi yakin olandan baslayarak al
+                var packets = new List<int[]>(); // [apid, net, sms, min]
+                var sel = new NpgsqlCommand(
+                    @"SELECT active_packet_id, internet_left, sms_left, minute_left
+                      FROM customers_packet
+                      WHERE phone_number = @p AND isactive = TRUE
+                      ORDER BY due_date, active_packet_id", conn, tx);
+                sel.Parameters.AddWithValue("p", phone);
+                await using (var r = await sel.ExecuteReaderAsync())
+                    while (await r.ReadAsync())
+                        packets.Add(new[] { r.GetInt32(0),
+                                            r.IsDBNull(1)?0:r.GetInt32(1),
+                                            r.IsDBNull(2)?0:r.GetInt32(2),
+                                            r.IsDBNull(3)?0:r.GetInt32(3) });
+
+                if (packets.Count == 0)
+                    throw new Exception("Bu numaraya ait aktif paket bulunamadı.");
+
+                // Bir kaynagi paketler boyunca tek tek dusuren yardimci (taşma mantığı)
+                int Spend(int need, int idx)
+                {
+                    for (int i = 0; i < packets.Count && need > 0; i++)
+                    {
+                        int take = Math.Min(need, packets[i][idx]);
+                        packets[i][idx] -= take;   // negatife dusmez (take <= mevcut)
+                        need -= take;
+                    }
+                    return need; // karsilanamayan kalan
+                }
+
+                int netLeftover = Spend(mbUsed,  1);
+                int smsLeftover = Spend(smsUsed, 2);
+                int minLeftover = Spend(minUsed, 3);
+
+                // Degisen paketleri guncelle
+                foreach (var p in packets)
+                {
+                    var up = new NpgsqlCommand(
+                        @"UPDATE customers_packet
+                          SET internet_left = @i, sms_left = @s, minute_left = @m
+                          WHERE phone_number = @p AND active_packet_id = @apid", conn, tx);
+                    up.Parameters.AddWithValue("i", p[1]);
+                    up.Parameters.AddWithValue("s", p[2]);
+                    up.Parameters.AddWithValue("m", p[3]);
+                    up.Parameters.AddWithValue("p", phone);
+                    up.Parameters.AddWithValue("apid", p[0]);
+                    await up.ExecuteNonQueryAsync();
+                }
+
+                await tx.CommitAsync();
+
+                var msg = $"Düşüldü → İnternet: {mbUsed - netLeftover} MB, SMS: {smsUsed - smsLeftover}, Dakika: {minUsed - minLeftover}.";
+                if (netLeftover > 0 || smsLeftover > 0 || minLeftover > 0)
+                    msg += $" (Yetersiz bakiye: {netLeftover} MB / {smsLeftover} SMS / {minLeftover} DK karşılanamadı.)";
+                return msg;
+            }
+            catch { await tx.RollbackAsync(); throw; }
+        }
+
+        // ==========================================
+        // 3b. PAKET SATIN ALMA (musteri) - INSERT
+        // ==========================================
+        public async Task<List<PacketCatalogItem>> GetBuyablePacketsAsync()
+        {
+            var list = new List<PacketCatalogItem>();
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
             var cmd = new NpgsqlCommand(
-                @"UPDATE customers_packet
-                  SET internet_left = GREATEST(0, internet_left - @mb),
-                      sms_left      = GREATEST(0, sms_left - @sms),
-                      minute_left   = GREATEST(0, minute_left - @min)
-                  WHERE phone_number = @p AND isactive = TRUE", conn);
-            cmd.Parameters.AddWithValue("p", phone);
-            cmd.Parameters.AddWithValue("mb", mbUsed);
-            cmd.Parameters.AddWithValue("sms", smsUsed);
-            cmd.Parameters.AddWithValue("min", minUsed);
-            int affected = await cmd.ExecuteNonQueryAsync();
-            if (affected == 0)
-                throw new Exception("Bu numaraya ait aktif paket bulunamadi.");
+                @"SELECT p.packet_id, p.plan_type, p.internet_size, p.sms_count, p.minute_count,
+                         p.international_usage, COALESCE(ppp.monthly_fee, prp.fee, 0) AS fee
+                  FROM packets p
+                  LEFT JOIN post_paid_packet ppp ON p.packet_id = ppp.packet_id
+                  LEFT JOIN pre_paid_packet  prp ON p.packet_id = prp.packet_id
+                  WHERE p.plan_type IN ('Post-Paid','Pre-Paid')
+                  ORDER BY p.plan_type, fee", conn);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+                list.Add(new PacketCatalogItem
+                {
+                    PacketId = r.GetInt32(0),
+                    PlanType = r.GetString(1),
+                    InternetSize = r.IsDBNull(2)?0:r.GetInt32(2),
+                    SmsCount = r.IsDBNull(3)?0:r.GetInt32(3),
+                    MinuteCount = r.IsDBNull(4)?0:r.GetInt32(4),
+                    International = !r.IsDBNull(5) && r.GetBoolean(5),
+                    Fee = r.IsDBNull(6)?0:r.GetDecimal(6)
+                });
+            return list;
         }
 
-        // --- Hediye Paketi Tanimlama (UPDATE cooldown + INSERT customers_packet) ---
+        // Musteri bir paketi "satin alir" (para yok). customers_packet'e kotalariyla eklenir.
+        public async Task PurchasePacketAsync(string phone, int packetId)
+        {
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            await using var tx = await conn.BeginTransactionAsync();
+            try
+            {
+                int net = 0, sms = 0, min = 0; string plan = null;
+                var pk = new NpgsqlCommand(
+                    @"SELECT internet_size, sms_count, minute_count, plan_type
+                      FROM packets WHERE packet_id = @pid", conn, tx);
+                pk.Parameters.AddWithValue("pid", packetId);
+                await using (var r = await pk.ExecuteReaderAsync())
+                {
+                    if (!await r.ReadAsync()) throw new Exception("Paket bulunamadı.");
+                    net = r.IsDBNull(0)?0:r.GetInt32(0);
+                    sms = r.IsDBNull(1)?0:r.GetInt32(1);
+                    min = r.IsDBNull(2)?0:r.GetInt32(2);
+                    plan = r.GetString(3);
+                }
+                if (plan == "Gift") throw new Exception("Hediye paketleri satın alınamaz.");
+
+                int apid = Convert.ToInt32(await new NpgsqlCommand(
+                    "SELECT COALESCE(MAX(active_packet_id),0)+1 FROM customers_packet WHERE phone_number=@p"
+                    , conn, tx) { Parameters = { new("p", phone) } }.ExecuteScalarAsync());
+
+                var ins = new NpgsqlCommand(
+                    @"INSERT INTO customers_packet
+                        (phone_number, active_packet_id, isactive, internet_left, sms_left, minute_left, due_date, packet_id)
+                      VALUES (@p, @apid, TRUE, @net, @sms, @min,
+                              CASE WHEN @plan = 'Post-Paid' THEN CURRENT_DATE + INTERVAL '1 month'
+                                   ELSE CURRENT_DATE + INTERVAL '30 days' END,
+                              @pid)", conn, tx);
+                ins.Parameters.AddWithValue("p", phone);
+                ins.Parameters.AddWithValue("apid", apid);
+                ins.Parameters.AddWithValue("net", net);
+                ins.Parameters.AddWithValue("sms", sms);
+                ins.Parameters.AddWithValue("min", min);
+                ins.Parameters.AddWithValue("plan", plan);
+                ins.Parameters.AddWithValue("pid", packetId);
+                await ins.ExecuteNonQueryAsync();
+
+                await tx.CommitAsync();
+            }
+            catch { await tx.RollbackAsync(); throw; }
+        }
+
+        // --- Hediye Paketi (UPDATE cooldown + INSERT) ---
         public async Task GrantGiftPacketAsync(string phone, int giftPacketId)
         {
             await using var conn = new NpgsqlConnection(_connectionString);
@@ -183,7 +412,6 @@ namespace MetuCell.Services
             await using var tx = await conn.BeginTransactionAsync();
             try
             {
-                // 1) Hediye paketinin katalog kotalarini al (FK kontrolu de burada dolayli yapilir)
                 var pkCmd = new NpgsqlCommand(
                     @"SELECT internet_size, sms_count, minute_count
                       FROM packets WHERE packet_id = @pid AND plan_type = 'Gift'", conn, tx);
@@ -192,69 +420,57 @@ namespace MetuCell.Services
                 await using (var pr = await pkCmd.ExecuteReaderAsync())
                 {
                     if (!await pr.ReadAsync())
-                        throw new Exception($"Gecerli bir hediye paketi degil (ID: {giftPacketId}).");
-                    net = pr.IsDBNull(0) ? 0 : pr.GetInt32(0);
-                    sms = pr.IsDBNull(1) ? 0 : pr.GetInt32(1);
-                    min = pr.IsDBNull(2) ? 0 : pr.GetInt32(2);
+                        throw new Exception($"Geçerli bir hediye paketi değil (ID: {giftPacketId}).");
+                    net = pr.IsDBNull(0)?0:pr.GetInt32(0);
+                    sms = pr.IsDBNull(1)?0:pr.GetInt32(1);
+                    min = pr.IsDBNull(2)?0:pr.GetInt32(2);
                 }
 
-                // 2) Cooldown'u 30 gun ileri al (mukerrer talep engeli)
-                var cmd1 = new NpgsqlCommand(
-                    @"UPDATE mobile_line
-                      SET gift_cooldown_timestamp = CURRENT_TIMESTAMP + INTERVAL '30 days'
+                var c1 = new NpgsqlCommand(
+                    @"UPDATE mobile_line SET gift_cooldown_timestamp = CURRENT_TIMESTAMP + INTERVAL '30 days'
                       WHERE phone_number = @p", conn, tx);
-                cmd1.Parameters.AddWithValue("p", phone);
-                if (await cmd1.ExecuteNonQueryAsync() == 0)
-                    throw new Exception("Hat bulunamadi.");
+                c1.Parameters.AddWithValue("p", phone);
+                if (await c1.ExecuteNonQueryAsync() == 0) throw new Exception("Hat bulunamadı.");
 
-                // 3) Bu hat icin bir sonraki Active_Packet_ID'yi uret (bilesik PK)
-                var apCmd = new NpgsqlCommand(
-                    @"SELECT COALESCE(MAX(active_packet_id), 0) + 1
-                      FROM customers_packet WHERE phone_number = @p", conn, tx);
-                apCmd.Parameters.AddWithValue("p", phone);
-                int activePacketId = Convert.ToInt32(await apCmd.ExecuteScalarAsync());
+                int apid = Convert.ToInt32(await new NpgsqlCommand(
+                    "SELECT COALESCE(MAX(active_packet_id),0)+1 FROM customers_packet WHERE phone_number=@p"
+                    , conn, tx) { Parameters = { new("p", phone) } }.ExecuteScalarAsync());
 
-                // 4) Hediyeyi aktif paket olarak ekle (7 gun gecerli)
-                var cmd2 = new NpgsqlCommand(
+                var c2 = new NpgsqlCommand(
                     @"INSERT INTO customers_packet
                         (phone_number, active_packet_id, isactive, internet_left, sms_left, minute_left, due_date, packet_id)
                       VALUES (@p, @apid, TRUE, @net, @sms, @min, CURRENT_DATE + INTERVAL '7 days', @pid)", conn, tx);
-                cmd2.Parameters.AddWithValue("p", phone);
-                cmd2.Parameters.AddWithValue("apid", activePacketId);
-                cmd2.Parameters.AddWithValue("net", net);
-                cmd2.Parameters.AddWithValue("sms", sms);
-                cmd2.Parameters.AddWithValue("min", min);
-                cmd2.Parameters.AddWithValue("pid", giftPacketId);
-                await cmd2.ExecuteNonQueryAsync();
+                c2.Parameters.AddWithValue("p", phone);
+                c2.Parameters.AddWithValue("apid", apid);
+                c2.Parameters.AddWithValue("net", net);
+                c2.Parameters.AddWithValue("sms", sms);
+                c2.Parameters.AddWithValue("min", min);
+                c2.Parameters.AddWithValue("pid", giftPacketId);
+                await c2.ExecuteNonQueryAsync();
 
                 await tx.CommitAsync();
             }
             catch { await tx.RollbackAsync(); throw; }
         }
 
-        // --- Suresi Gecmis Paketleri Sil (DELETE) ---
         public async Task<int> DeleteExpiredPacketsAsync()
         {
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
-            var cmd = new NpgsqlCommand(
-                @"DELETE FROM customers_packet WHERE due_date < CURRENT_DATE", conn);
-            return await cmd.ExecuteNonQueryAsync();
+            return await new NpgsqlCommand(
+                @"DELETE FROM customers_packet WHERE due_date < CURRENT_DATE", conn).ExecuteNonQueryAsync();
         }
 
         // ==========================================
-        // 4. DATA QUERIES (RAPORLAMA SORGULARI a-f)
+        // 4. RAPORLAMA SORGULARI (a-f)
         // ==========================================
-
-        // (a) Belirli hattin gercek zamanli kalan bakiyeleri
         public async Task<BalanceReport> GetRemainingBalancesAsync(string phone)
         {
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
             var cmd = new NpgsqlCommand(
                 @"SELECT COALESCE(SUM(internet_left),0), COALESCE(SUM(sms_left),0), COALESCE(SUM(minute_left),0)
-                  FROM customers_packet
-                  WHERE phone_number = @p AND isactive = TRUE", conn);
+                  FROM customers_packet WHERE phone_number = @p AND isactive = TRUE", conn);
             cmd.Parameters.AddWithValue("p", phone);
             await using var r = await cmd.ExecuteReaderAsync();
             return await r.ReadAsync()
@@ -267,7 +483,6 @@ namespace MetuCell.Services
                 : null;
         }
 
-        // (b) Bir kurumsal musterinin sahip oldugu tum hatlarin kullanicilari (JOIN)
         public async Task<List<UserReport>> GetBusinessUsersAsync(int customerId)
         {
             var list = new List<UserReport>();
@@ -284,6 +499,37 @@ namespace MetuCell.Services
             await using var r = await cmd.ExecuteReaderAsync();
             while (await r.ReadAsync())
                 list.Add(new UserReport { FirstName = r.GetString(0), LastName = r.GetString(1) });
+            return list;
+        }
+
+        public async Task<List<CorporateLine>> GetCorporateLinesAsync(int customerId)
+        {
+            var list = new List<CorporateLine>();
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            var cmd = new NpgsqlCommand(
+                @"SELECT u.first_name, u.last_name, ml.phone_number,
+                         COALESCE(SUM(cp.internet_left),0), COALESCE(SUM(cp.sms_left),0), COALESCE(SUM(cp.minute_left),0)
+                  FROM business_customer b
+                  JOIN sim_card s        ON s.customerid    = b.customerid
+                  JOIN mobile_line ml    ON ml.sim_id       = s.sim_id
+                  LEFT JOIN ""User"" u    ON u.phone_number  = ml.phone_number
+                  LEFT JOIN customers_packet cp ON cp.phone_number = ml.phone_number AND cp.isactive = TRUE
+                  WHERE b.customerid = @cid
+                  GROUP BY u.first_name, u.last_name, ml.phone_number
+                  ORDER BY ml.phone_number", conn);
+            cmd.Parameters.AddWithValue("cid", customerId);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+                list.Add(new CorporateLine
+                {
+                    FirstName = r.IsDBNull(0)?"-":r.GetString(0),
+                    LastName = r.IsDBNull(1)?"":r.GetString(1),
+                    Phone = r.GetString(2),
+                    InternetLeft = Convert.ToInt32(r.GetValue(3)),
+                    SmsLeft = Convert.ToInt32(r.GetValue(4)),
+                    MinuteLeft = Convert.ToInt32(r.GetValue(5))
+                });
             return list;
         }
 
@@ -307,18 +553,13 @@ namespace MetuCell.Services
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
             var cmd = new NpgsqlCommand(
-                @"SELECT s.puk_no, s.sim_type
-                  FROM sim_card s
-                  JOIN mobile_line m ON s.sim_id = m.sim_id
-                  WHERE m.phone_number = @p", conn);
+                @"SELECT s.puk_no, s.sim_type FROM sim_card s
+                  JOIN mobile_line m ON s.sim_id = m.sim_id WHERE m.phone_number = @p", conn);
             cmd.Parameters.AddWithValue("p", phone);
             await using var r = await cmd.ExecuteReaderAsync();
-            return await r.ReadAsync()
-                ? $"PUK: {r.GetString(0)}  |  TIP: {r.GetString(1)}"
-                : "Kayit bulunamadi.";
+            return await r.ReadAsync() ? $"PUK: {r.GetString(0)}  |  TIP: {r.GetString(1)}" : "Kayıt bulunamadı.";
         }
 
-        // (e) Son 3 gun icinde faturasi/suresi dolacak aktif hatlar
         public async Task<List<string>> GetExpiringLinesAsync()
         {
             var list = new List<string>();
@@ -333,7 +574,6 @@ namespace MetuCell.Services
             return list;
         }
 
-        // (f) Bir musterinin toplam aylik post-paid faturasi (AGGREGATE + 5'li JOIN)
         public async Task<decimal> GetTotalMonthlyFeeAsync(int customerId)
         {
             await using var conn = new NpgsqlConnection(_connectionString);
@@ -349,5 +589,34 @@ namespace MetuCell.Services
             cmd.Parameters.AddWithValue("cid", customerId);
             return Convert.ToDecimal(await cmd.ExecuteScalarAsync());
         }
+    }
+
+    // ---- Yardimci modeller ----
+    public class LoginResult
+    {
+        public int CustomerId { get; set; }
+        public bool IsBusiness { get; set; }
+        public string DisplayName { get; set; }
+    }
+
+    public class CorporateLine
+    {
+        public string FirstName { get; set; }
+        public string LastName { get; set; }
+        public string Phone { get; set; }
+        public int InternetLeft { get; set; }
+        public int SmsLeft { get; set; }
+        public int MinuteLeft { get; set; }
+    }
+
+    public class PacketCatalogItem
+    {
+        public int PacketId { get; set; }
+        public string PlanType { get; set; }
+        public int InternetSize { get; set; }
+        public int SmsCount { get; set; }
+        public int MinuteCount { get; set; }
+        public bool International { get; set; }
+        public decimal Fee { get; set; }
     }
 }
