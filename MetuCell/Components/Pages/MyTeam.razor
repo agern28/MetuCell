@@ -32,8 +32,8 @@
 
 <div class="animate__animated animate__fadeIn">
     <div class="team-hero">
-        <h1><i class="bi bi-people-fill"></i> Çalışanlarım</h1>
-        <p>@AppState.LoggedInName — kurumunuza bağlı hatlar ve güncel kullanımları.</p>
+        <h1><i class="bi bi-people-fill"></i> My Team</h1>
+        <p>@AppState.LoggedInName — lines linked to your company and their current usage.</p>
     </div>
 
     @if (isLoading)
@@ -42,15 +42,15 @@
     }
     else if (lines == null || lines.Count == 0)
     {
-        <div class="alert alert-info">Kurumunuza bağlı aktif hat bulunamadı.</div>
+        <div class="alert alert-info">No active lines found for your company.</div>
     }
     else
     {
         <table class="team-table">
             <thead>
                 <tr>
-                    <th>Çalışan</th><th>Telefon</th>
-                    <th>İnternet</th><th>SMS</th><th>Dakika</th>
+                    <th>Employee</th><th>Phone</th>
+                    <th>Internet</th><th>SMS</th><th>Minutes</th>
                 </tr>
             </thead>
             <tbody>
@@ -61,7 +61,7 @@
                         <td>@l.Phone</td>
                         <td><span class="chip net">@l.InternetLeft MB</span></td>
                         <td><span class="chip sms">@l.SmsLeft SMS</span></td>
-                        <td><span class="chip min">@l.MinuteLeft DK</span></td>
+                        <td><span class="chip min">@l.MinuteLeft min</span></td>
                     </tr>
                 }
             </tbody>

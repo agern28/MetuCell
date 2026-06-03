@@ -1,0 +1,133 @@
+@page "/manage-accounts"
+@inject MetuCell.Services.DatabaseService DbService
+@inject MetuCell.Services.AppState AppState
+@inject NavigationManager NavManager
+
+<style>
+    .ma-shell { max-width: 980px; margin: 0 auto; }
+    .ma-card { background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 26px; height: 100%; }
+    .ma-card h5 { font-weight: 800; }
+</style>
+
+<div class="ma-shell animate__animated animate__fadeIn">
+    <h2 style="color: var(--accent); font-weight: 800; margin-bottom: 6px;">
+        <i class="bi bi-tools"></i> Account &amp; Maintenance
+    </h2>
+    <p class="text-secondary mb-4">Profile updates, billing-cycle renewal and account/line removal. Deletions rely on the schema's <code>ON DELETE CASCADE</code> rules.</p>
+
+    <div class="row g-4">
+        <!-- (6.3b) UPDATE customer profile -->
+        <div class="col-md-6">
+            <div class="ma-card">
+                <h5 style="color: var(--accent);"><i class="bi bi-pencil-square"></i> Update Customer Profile (UPDATE)</h5>
+                <p class="text-secondary small mb-3">Change the billing address and e-mail of a customer.</p>
+                <label>Customer ID</label>
+                <input class="form-control mb-2" type="number" @bind="ProfileId" placeholder="e.g. 1" />
+                <label>New Address</label>
+                <input class="form-control mb-2" @bind="ProfileAddress" placeholder="New address" />
+                <label>New Email</label>
+                <input class="form-control mb-2" @bind="ProfileEmail" placeholder="new.mail@example.com" />
+                <button class="btn btn-primary w-100 mt-2" @onclick="UpdateProfile">Save Profile</button>
+            </div>
+        </div>
+
+        <!-- (6.3c) UPDATE billing-cycle renewal -->
+        <div class="col-md-6">
+            <div class="ma-card">
+                <h5 style="color: var(--good);"><i class="bi bi-arrow-repeat"></i> Renew Post-Paid Cycle (UPDATE)</h5>
+                <p class="text-secondary small mb-3">Reset quotas and roll the due date forward one month for every post-paid packet whose billing date has arrived.</p>
+                <button class="btn btn-success w-100 mt-2" @onclick="RenewCycle">Run Billing-Cycle Renewal</button>
+            </div>
+        </div>
+
+        <!-- (6.3f) DELETE mobile line -->
+        <div class="col-md-6">
+            <div class="ma-card">
+                <h5 style="color: var(--bad);"><i class="bi bi-telephone-x"></i> Delete Mobile Line (DELETE)</h5>
+                <p class="text-secondary small mb-3">Removes the line; its user and packets are deleted by cascade.</p>
+                <label>Phone Number</label>
+                <input class="form-control mb-2" @bind="DeletePhone" placeholder="5551000006" />
+                <button class="btn btn-danger w-100 mt-2" @onclick="DeleteLine">Delete Line</button>
+            </div>
+        </div>
+
+        <!-- (6.3g) DELETE customer -->
+        <div class="col-md-6">
+            <div class="ma-card">
+                <h5 style="color: var(--bad);"><i class="bi bi-person-x"></i> Delete Customer (DELETE)</h5>
+                <p class="text-secondary small mb-3">Removes the account owner; SIM cards, lines, users and packets cascade.</p>
+                <label>Customer ID</label>
+                <input class="form-control mb-2" type="number" @bind="DeleteCustId" placeholder="e.g. 2" />
+                <button class="btn btn-danger w-100 mt-2" @onclick="DeleteCust">Delete Customer</button>
+            </div>
+        </div>
+    </div>
+
+    @if (Msg != null)
+    {
+        <div class="alert @(isError ? "alert-danger" : "alert-success") mt-4 fw-bold">@Msg</div>
+    }
+</div>
+
+@code {
+    int ProfileId, DeleteCustId;
+    string ProfileAddress = "", ProfileEmail = "", DeletePhone = "", Msg;
+    bool isError = false;
+
+    protected override void OnInitialized()
+    {
+        if (!AppState.IsLoggedIn) NavManager.NavigateTo("/login");
+        else if (!AppState.IsAdmin) NavManager.NavigateTo(""); // admin only
+    }
+
+    async Task UpdateProfile()
+    {
+        isError = false; Msg = null;
+        if (ProfileId <= 0 || string.IsNullOrWhiteSpace(ProfileAddress) || string.IsNullOrWhiteSpace(ProfileEmail))
+        { isError = true; Msg = "Customer ID, address and email are required."; return; }
+        try
+        {
+            int n = await DbService.UpdateCustomerProfileAsync(ProfileId, ProfileAddress, ProfileEmail);
+            Msg = n > 0 ? $"✅ Profile updated for customer {ProfileId}." : "No customer found with that ID.";
+            isError = n == 0;
+        }
+        catch (Exception ex) { isError = true; Msg = "Error: " + ex.Message; }
+    }
+
+    async Task RenewCycle()
+    {
+        isError = false; Msg = null;
+        try
+        {
+            int n = await DbService.RenewExpiredPostPaidAsync();
+            Msg = $"✅ Billing-cycle renewal completed. {n} post-paid packet(s) renewed.";
+        }
+        catch (Exception ex) { isError = true; Msg = "Error: " + ex.Message; }
+    }
+
+    async Task DeleteLine()
+    {
+        isError = false; Msg = null;
+        if (string.IsNullOrWhiteSpace(DeletePhone)) { isError = true; Msg = "Enter a phone number."; return; }
+        try
+        {
+            int n = await DbService.DeleteMobileLineAsync(DeletePhone);
+            Msg = n > 0 ? $"✅ Line {DeletePhone} deleted (user and packets cascaded)." : "No line found with that number.";
+            isError = n == 0;
+        }
+        catch (Exception ex) { isError = true; Msg = "Error: " + ex.Message; }
+    }
+
+    async Task DeleteCust()
+    {
+        isError = false; Msg = null;
+        if (DeleteCustId <= 0) { isError = true; Msg = "Enter a valid Customer ID."; return; }
+        try
+        {
+            int n = await DbService.DeleteCustomerAsync(DeleteCustId);
+            Msg = n > 0 ? $"✅ Customer {DeleteCustId} deleted (SIM cards, lines, users and packets cascaded)." : "No customer found with that ID.";
+            isError = n == 0;
+        }
+        catch (Exception ex) { isError = true; Msg = "Error: " + ex.Message; }
+    }
+}

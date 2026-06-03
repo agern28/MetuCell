@@ -34,16 +34,30 @@
 @if (AppState.IsLoggedIn)
 {
     <div class="container-fluid animate__animated animate__fadeIn">
-        <h2 style="color: #22d3ee; font-weight: 800; margin-bottom: 30px;">CRM & Raporlar Ekranı</h2>
+        <h2 style="color: #22d3ee; font-weight: 800; margin-bottom: 30px;">CRM & Reports</h2>
 
         <div class="row">
-            <!-- Query (b): Kurumsal Kullanıcı Listesi -->
+            <!-- Query (c): Gift-Eligible Lines (cooldown passed) -->
             <div class="col-md-6">
                 <div class="crm-card">
-                    <div class="title-teal">(b) Kurumsal Hat Kullanıcıları</div>
+                    <div class="title-teal">(c) Gift-Eligible Lines (cooldown passed)</div>
+                    <button class="btn btn-success btn-sm fw-bold mb-3" @onclick="GetEligible">List Eligible Lines</button>
+                    @if (eligibleLines != null)
+                    {
+                        <ul class="text-secondary small">@foreach (var l in eligibleLines) {
+                            <li>@l</li>
+                        }
+                    </ul>
+                    }
+                </div>
+            </div>
+            <!-- Query (b): Business User List -->
+            <div class="col-md-6">
+                <div class="crm-card">
+                    <div class="title-teal">(b) Business Line Users</div>
                     <div class="d-flex mb-3">
-                        <input type="number" class="crm-input" @bind="busId" placeholder="Müşteri ID (Örn: 1)" />
-                        <button class="btn btn-info btn-sm fw-bold" @onclick="GetUsers">Sorgula</button>
+                        <input type="number" class="crm-input" @bind="busId" placeholder="Customer ID (e.g. 1)" />
+                        <button class="btn btn-info btn-sm fw-bold" @onclick="GetUsers">Run</button>
                     </div>
                     @if (users != null)
                     {
@@ -55,17 +69,17 @@
             </div>
         </div>
 
-        <!-- Query (f): Toplam Fatura Hesaplama -->
+        <!-- Query (f): Total Bill Calculation -->
         <div class="col-md-6">
             <div class="crm-card">
-                <div class="title-teal">(f) Toplam Fatura Tutarı (Post-Paid)</div>
+                <div class="title-teal">(f) Total Bill Amount (Post-Paid)</div>
                 <div class="d-flex mb-3">
-                    <input type="number" class="crm-input" @bind="custId" placeholder="Müşteri ID" />
-                    <button class="btn btn-warning btn-sm fw-bold text-dark" @onclick="CalcTotal">Hesapla</button>
+                    <input type="number" class="crm-input" @bind="custId" placeholder="Customer ID" />
+                    <button class="btn btn-warning btn-sm fw-bold text-dark" @onclick="CalcTotal">Calculate</button>
                 </div>
                 @if (totalFee > -1)
                 {
-                    <div class="text-warning fw-bold fs-5">Toplam: @totalFee TL</div>
+                    <div class="text-warning fw-bold fs-5">Total: @totalFee TL</div>
                 }
             </div>
         </div>
@@ -73,10 +87,10 @@
         <!-- Query (d): PUK ve SIM Bilgisi -->
         <div class="col-md-6">
             <div class="crm-card">
-                <div class="title-teal">(d) Kilitli Hat (PUK & SIM TYPE) Kurtarma</div>
+                <div class="title-teal">(d) Locked Line Recovery (PUK & SIM TYPE)</div>
                 <div class="d-flex mb-3">
-                    <input type="text" class="crm-input" @bind="phoneSearch" placeholder="Tel No (532...)" />
-                    <button class="btn btn-primary btn-sm fw-bold" @onclick="GetSimInfo">Sorgula</button>
+                    <input type="text" class="crm-input" @bind="phoneSearch" placeholder="Phone No (532...)" />
+                    <button class="btn btn-primary btn-sm fw-bold" @onclick="GetSimInfo">Run</button>
                 </div>
                 @if (simInfo != null)
                 {
@@ -85,17 +99,17 @@
             </div>
         </div>
 
-        <!-- Query (e) & Transaction: Süresi Biten Paketler -->
+        <!-- Query (e) & Transaction: Expiring Packages -->
         <div class="col-md-6">
             <div class="crm-card">
-                <div class="title-teal">(e) Son 3 Günü Kalanlar & Temizlik</div>
-                <button class="btn btn-outline-info btn-sm fw-bold mb-3" @onclick="GetExpiring">Uyarı Listesini Çek (3 Gün)</button>
-                <button class="btn btn-danger btn-sm fw-bold mb-3 ms-2" @onclick="CleanExpired">Süresi Dolanları Sil</button>
+                <div class="title-teal">(e) Expiring in 3 Days & Cleanup</div>
+                <button class="btn btn-outline-info btn-sm fw-bold mb-3" @onclick="GetExpiring">Fetch Alert List (3 Days)</button>
+                <button class="btn btn-danger btn-sm fw-bold mb-3 ms-2" @onclick="CleanExpired">Delete Expired</button>
 
                 @if (expiringLines != null)
                 {
                     <ul class="text-danger small">@foreach(var l in expiringLines) {
-                        <li>@l (Uyarı Gönderilecek)</li>
+                        <li>@l (alert will be sent)</li>
                     }
                 </ul>
             }
@@ -115,10 +129,12 @@
     decimal totalFee = -1;
     List<UserReport> users;
     List<string> expiringLines;
+    List<string> eligibleLines;
 
     protected override void OnInitialized() { if (!AppState.IsLoggedIn) Nav.NavigateTo("/login"); }
 
     async Task GetUsers() => users = await Db.GetBusinessUsersAsync(busId);
+    async Task GetEligible() => eligibleLines = await Db.GetEligibleLinesForGiftAsync();
     async Task CalcTotal() => totalFee = await Db.GetTotalMonthlyFeeAsync(custId);
     async Task GetSimInfo() => simInfo = await Db.GetSimDetailsAsync(phoneSearch);
     async Task GetExpiring() => expiringLines = await Db.GetExpiringLinesAsync();
@@ -126,6 +142,6 @@
     async Task CleanExpired()
     {
         await Db.DeleteExpiredPacketsAsync();
-        cleanMessage = "Süresi geçmiş tüm paketler veritabanından silindi!";
+        cleanMessage = "All expired packages have been deleted from the database!";
     }
 }

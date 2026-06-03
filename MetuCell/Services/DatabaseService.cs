@@ -26,7 +26,7 @@ namespace MetuCell.Services
             var cmd = new NpgsqlCommand(
                 @"SELECT c.customerid,
                          (bc.customerid IS NOT NULL) AS is_business,
-                         COALESCE(bc.company_name, u.first_name || ' ' || u.last_name, 'Müşteri') AS display_name
+                         COALESCE(bc.company_name, u.first_name || ' ' || u.last_name, 'Customer') AS display_name
                   FROM mobile_line ml
                   JOIN sim_card s ON ml.sim_id    = s.sim_id
                   JOIN customer c ON s.customerid = c.customerid
@@ -213,7 +213,7 @@ namespace MetuCell.Services
                 await using (var ir = await info.ExecuteReaderAsync())
                 {
                     if (!await ir.ReadAsync())
-                        throw new Exception($"Müşteri bulunamadı (ID: {customerId}).");
+                        throw new Exception($"Customer not found (ID: {customerId}).");
                     custPassword = ir.GetString(0);
                     isBusiness = ir.GetBoolean(1);
                 }
@@ -222,7 +222,7 @@ namespace MetuCell.Services
                 if (forSelf)
                 {
                     if (isBusiness)
-                        throw new Exception("Kurumsal müşteri için 'kendisi' seçilemez. Lütfen bir çalışan tanımlayın.");
+                        throw new Exception("'Self' cannot be selected for a business customer. Please define an employee.");
 
                     var ind = new NpgsqlCommand(
                         @"SELECT trnid, first_name, last_name, gender, dob
@@ -230,7 +230,7 @@ namespace MetuCell.Services
                     ind.Parameters.AddWithValue("cid", customerId);
                     await using var rr = await ind.ExecuteReaderAsync();
                     if (!await rr.ReadAsync())
-                        throw new Exception("Bireysel müşteri bilgisi bulunamadı.");
+                        throw new Exception("Individual customer record not found.");
                     trnId = rr.GetString(0);
                     firstName = rr.GetString(1);
                     lastName = rr.GetString(2);
@@ -247,7 +247,7 @@ namespace MetuCell.Services
                 }
                 catch (PostgresException pe) when (pe.SqlState == "23505") // unique_violation (User PK = TRNID)
                 {
-                    throw new Exception("Bu TRNC ID ile zaten bir kullanıcı var. Aynı kişi ikinci bir hatta kullanıcı olamaz; farklı bir kullanıcı tanımlayın.");
+                    throw new Exception("A user with this TRNC ID already exists. The same person cannot be the user of a second line; please define a different user.");
                 }
 
                 await tx.CommitAsync();
@@ -282,7 +282,7 @@ namespace MetuCell.Services
                                             r.IsDBNull(3)?0:r.GetInt32(3) });
 
                 if (packets.Count == 0)
-                    throw new Exception("Bu numaraya ait aktif paket bulunamadı.");
+                    throw new Exception("No active package found for this number.");
 
                 // Bir kaynagi paketler boyunca tek tek dusuren yardimci (taşma mantığı)
                 int Spend(int need, int idx)
@@ -317,9 +317,9 @@ namespace MetuCell.Services
 
                 await tx.CommitAsync();
 
-                var msg = $"Düşüldü → İnternet: {mbUsed - netLeftover} MB, SMS: {smsUsed - smsLeftover}, Dakika: {minUsed - minLeftover}.";
+                var msg = $"Deducted → Internet: {mbUsed - netLeftover} MB, SMS: {smsUsed - smsLeftover}, Minutes: {minUsed - minLeftover}.";
                 if (netLeftover > 0 || smsLeftover > 0 || minLeftover > 0)
-                    msg += $" (Yetersiz bakiye: {netLeftover} MB / {smsLeftover} SMS / {minLeftover} DK karşılanamadı.)";
+                    msg += $" (Insufficient balance: {netLeftover} MB / {smsLeftover} SMS / {minLeftover} min could not be covered.)";
                 return msg;
             }
             catch { await tx.RollbackAsync(); throw; }
@@ -371,13 +371,13 @@ namespace MetuCell.Services
                 pk.Parameters.AddWithValue("pid", packetId);
                 await using (var r = await pk.ExecuteReaderAsync())
                 {
-                    if (!await r.ReadAsync()) throw new Exception("Paket bulunamadı.");
+                    if (!await r.ReadAsync()) throw new Exception("Package not found.");
                     net = r.IsDBNull(0)?0:r.GetInt32(0);
                     sms = r.IsDBNull(1)?0:r.GetInt32(1);
                     min = r.IsDBNull(2)?0:r.GetInt32(2);
                     plan = r.GetString(3);
                 }
-                if (plan == "Gift") throw new Exception("Hediye paketleri satın alınamaz.");
+                if (plan == "Gift") throw new Exception("Gift packages cannot be purchased.");
 
                 int apid = Convert.ToInt32(await new NpgsqlCommand(
                     "SELECT COALESCE(MAX(active_packet_id),0)+1 FROM customers_packet WHERE phone_number=@p"
@@ -420,7 +420,7 @@ namespace MetuCell.Services
                 await using (var pr = await pkCmd.ExecuteReaderAsync())
                 {
                     if (!await pr.ReadAsync())
-                        throw new Exception($"Geçerli bir hediye paketi değil (ID: {giftPacketId}).");
+                        throw new Exception($"Not a valid gift package (ID: {giftPacketId}).");
                     net = pr.IsDBNull(0)?0:pr.GetInt32(0);
                     sms = pr.IsDBNull(1)?0:pr.GetInt32(1);
                     min = pr.IsDBNull(2)?0:pr.GetInt32(2);
@@ -430,7 +430,7 @@ namespace MetuCell.Services
                     @"UPDATE mobile_line SET gift_cooldown_timestamp = CURRENT_TIMESTAMP + INTERVAL '30 days'
                       WHERE phone_number = @p", conn, tx);
                 c1.Parameters.AddWithValue("p", phone);
-                if (await c1.ExecuteNonQueryAsync() == 0) throw new Exception("Hat bulunamadı.");
+                if (await c1.ExecuteNonQueryAsync() == 0) throw new Exception("Line not found.");
 
                 int apid = Convert.ToInt32(await new NpgsqlCommand(
                     "SELECT COALESCE(MAX(active_packet_id),0)+1 FROM customers_packet WHERE phone_number=@p"
@@ -462,6 +462,65 @@ namespace MetuCell.Services
         }
 
         // ==========================================
+        // 5. ACCOUNT MAINTENANCE (profile update, billing renewal, deletions)
+        // ==========================================
+
+        // (6.3b) Update a customer's profile (address / email). Returns affected rows.
+        public async Task<int> UpdateCustomerProfileAsync(int customerId, string address, string email)
+        {
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            var cmd = new NpgsqlCommand(
+                @"UPDATE customer SET address = @a, email = @e WHERE customerid = @cid", conn);
+            cmd.Parameters.AddWithValue("a", address);
+            cmd.Parameters.AddWithValue("e", email);
+            cmd.Parameters.AddWithValue("cid", customerId);
+            return await cmd.ExecuteNonQueryAsync();
+        }
+
+        // (6.3c) Renew every post-paid packet whose billing cycle (due date) has arrived:
+        // reset the quotas from the catalog and push the due date one month forward.
+        public async Task<int> RenewExpiredPostPaidAsync()
+        {
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            var cmd = new NpgsqlCommand(
+                @"UPDATE customers_packet CP
+                  SET sms_left      = P.sms_count,
+                      internet_left = P.internet_size,
+                      minute_left   = P.minute_count,
+                      due_date      = CP.due_date + INTERVAL '1 month'
+                  FROM packets P
+                  JOIN post_paid_packet PPP ON P.packet_id = PPP.packet_id
+                  WHERE CP.packet_id = P.packet_id
+                    AND CP.due_date <= CURRENT_DATE
+                    AND CP.isactive = TRUE", conn);
+            return await cmd.ExecuteNonQueryAsync();
+        }
+
+        // (6.3f) Delete a mobile line; ON DELETE CASCADE removes its "User" and Customer's Packet rows.
+        public async Task<int> DeleteMobileLineAsync(string phone)
+        {
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            var cmd = new NpgsqlCommand(
+                @"DELETE FROM mobile_line WHERE phone_number = @p", conn);
+            cmd.Parameters.AddWithValue("p", phone);
+            return await cmd.ExecuteNonQueryAsync();
+        }
+
+        // (6.3g) Delete a customer; cascade removes SIM cards, mobile lines, users and packets.
+        public async Task<int> DeleteCustomerAsync(int customerId)
+        {
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            var cmd = new NpgsqlCommand(
+                @"DELETE FROM customer WHERE customerid = @cid", conn);
+            cmd.Parameters.AddWithValue("cid", customerId);
+            return await cmd.ExecuteNonQueryAsync();
+        }
+
+        // ==========================================
         // 4. RAPORLAMA SORGULARI (a-f)
         // ==========================================
         public async Task<BalanceReport> GetRemainingBalancesAsync(string phone)
@@ -481,6 +540,41 @@ namespace MetuCell.Services
                     MinuteLeft = Convert.ToInt32(r.GetValue(2))
                 }
                 : null;
+        }
+
+        // Hatta ait HER aktif paketi ayri ayri dondurur (kalan + orijinal kotalariyla).
+        // Dashboard'da Turkcell-tarzi paket-bazli gosterim icin kullanilir.
+        public async Task<List<PacketUsage>> GetActivePacketsAsync(string phone)
+        {
+            var list = new List<PacketUsage>();
+            await using var conn = new NpgsqlConnection(_connectionString);
+            await conn.OpenAsync();
+            var cmd = new NpgsqlCommand(
+                @"SELECT cp.active_packet_id, cp.packet_id, p.plan_type, p.international_usage, cp.due_date,
+                         cp.internet_left, cp.sms_left, cp.minute_left,
+                         p.internet_size, p.sms_count, p.minute_count
+                  FROM customers_packet cp
+                  JOIN packets p ON cp.packet_id = p.packet_id
+                  WHERE cp.phone_number = @p AND cp.isactive = TRUE
+                  ORDER BY cp.due_date, cp.active_packet_id", conn);
+            cmd.Parameters.AddWithValue("p", phone);
+            await using var r = await cmd.ExecuteReaderAsync();
+            while (await r.ReadAsync())
+                list.Add(new PacketUsage
+                {
+                    ActivePacketId = r.GetInt32(0),
+                    PacketId = r.GetInt32(1),
+                    PlanType = r.GetString(2),
+                    International = !r.IsDBNull(3) && r.GetBoolean(3),
+                    DueDate = r.GetDateTime(4),
+                    InternetLeft = r.IsDBNull(5) ? 0 : r.GetInt32(5),
+                    SmsLeft = r.IsDBNull(6) ? 0 : r.GetInt32(6),
+                    MinuteLeft = r.IsDBNull(7) ? 0 : r.GetInt32(7),
+                    InternetSize = r.IsDBNull(8) ? 0 : r.GetInt32(8),
+                    SmsCount = r.IsDBNull(9) ? 0 : r.GetInt32(9),
+                    MinuteCount = r.IsDBNull(10) ? 0 : r.GetInt32(10)
+                });
+            return list;
         }
 
         public async Task<List<UserReport>> GetBusinessUsersAsync(int customerId)
@@ -557,7 +651,7 @@ namespace MetuCell.Services
                   JOIN mobile_line m ON s.sim_id = m.sim_id WHERE m.phone_number = @p", conn);
             cmd.Parameters.AddWithValue("p", phone);
             await using var r = await cmd.ExecuteReaderAsync();
-            return await r.ReadAsync() ? $"PUK: {r.GetString(0)}  |  TIP: {r.GetString(1)}" : "Kayıt bulunamadı.";
+            return await r.ReadAsync() ? $"PUK: {r.GetString(0)}  |  TYPE: {r.GetString(1)}" : "No record found.";
         }
 
         public async Task<List<string>> GetExpiringLinesAsync()

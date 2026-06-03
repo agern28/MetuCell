@@ -11,41 +11,41 @@
 
 <div class="mu-shell animate__animated animate__fadeIn">
     <h2 style="color: var(--accent); font-weight: 800; margin-bottom: 6px;">
-        <i class="bi bi-sliders"></i> Kullanım & Promosyon Yönetimi
+        <i class="bi bi-sliders"></i> Usage & Promotion Management
     </h2>
-    <p class="text-secondary mb-4">Ağ tüketimini kotadan düşün veya bir hatta hediye paketi tanımlayın.</p>
+    <p class="text-secondary mb-4">Deduct network consumption from the quota or grant a gift package to a line.</p>
 
     <div class="row g-4">
         <!-- KOTA DUSME (UPDATE) -->
         <div class="col-md-6">
             <div class="mu-card">
-                <h5 style="color: var(--bad);"><i class="bi bi-graph-down-arrow"></i> Ağ Kullanımı (UPDATE)</h5>
-                <p class="text-secondary small mb-3">Tüketilen miktarı aktif paketten düşer.</p>
-                <label>Telefon No</label>
+                <h5 style="color: var(--bad);"><i class="bi bi-graph-down-arrow"></i> Network Usage (UPDATE)</h5>
+                <p class="text-secondary small mb-3">Deducts the consumed amount from the active package.</p>
+                <label>Phone Number</label>
                 <input class="form-control mb-2" @bind="PhoneUsage" placeholder="5551000001" />
                 <div class="row g-2">
-                    <div class="col-4"><label>İnternet (MB)</label><input class="form-control" type="number" @bind="UsedMb" /></div>
+                    <div class="col-4"><label>Internet (MB)</label><input class="form-control" type="number" @bind="UsedMb" /></div>
                     <div class="col-4"><label>SMS</label><input class="form-control" type="number" @bind="UsedSms" /></div>
-                    <div class="col-4"><label>Dakika</label><input class="form-control" type="number" @bind="UsedMin" /></div>
+                    <div class="col-4"><label>Minutes</label><input class="form-control" type="number" @bind="UsedMin" /></div>
                 </div>
-                <button class="btn btn-danger w-100 mt-3" @onclick="Consume">Kotadan Düş</button>
+                <button class="btn btn-danger w-100 mt-3" @onclick="Consume">Deduct from Quota</button>
             </div>
         </div>
 
         <!-- HEDIYE (TRANSACTION) -->
         <div class="col-md-6">
             <div class="mu-card">
-                <h5 style="color: var(--good);"><i class="bi bi-gift-fill"></i> Hediye Paketi (TRANSACTION)</h5>
-                <p class="text-secondary small mb-3">Cooldown'u ileri alır ve aktif hediye paketi ekler.</p>
-                <label>Telefon No</label>
+                <h5 style="color: var(--good);"><i class="bi bi-gift-fill"></i> Gift Package (TRANSACTION)</h5>
+                <p class="text-secondary small mb-3">Moves the cooldown forward and adds an active gift package.</p>
+                <label>Phone Number</label>
                 <input class="form-control mb-2" @bind="PhoneGift" placeholder="5551000004" />
-                <label>Hediye Paket ID</label>
+                <label>Gift Package ID</label>
                 <select class="form-select" @bind="GiftPacketId">
-                    <option value="301">301 – 1 GB İnternet</option>
-                    <option value="302">302 – 500 DK Konuşma</option>
-                    <option value="303">303 – 5 GB + 100 SMS + 100 DK</option>
+                    <option value="301">301 – 1 GB Internet</option>
+                    <option value="302">302 – 500 min Talk</option>
+                    <option value="303">303 – 5 GB + 100 SMS + 100 min</option>
                 </select>
-                <button class="btn btn-success w-100 mt-3" @onclick="GrantGift">Hediye Paketi Ata</button>
+                <button class="btn btn-success w-100 mt-3" @onclick="GrantGift">Grant Gift Package</button>
             </div>
         </div>
     </div>
@@ -71,24 +71,24 @@
     async Task Consume()
     {
         isError = false; Msg = null;
-        if (string.IsNullOrWhiteSpace(PhoneUsage)) { isError = true; Msg = "Telefon numarası girin."; return; }
+        if (string.IsNullOrWhiteSpace(PhoneUsage)) { isError = true; Msg = "Enter a phone number."; return; }
         try
         {
             var result = await DbService.ConsumeServiceAsync(PhoneUsage, UsedMb, UsedSms, UsedMin);
             Msg = "✅ " + result;
         }
-        catch (Exception ex) { isError = true; Msg = "Hata: " + ex.Message; }
+        catch (Exception ex) { isError = true; Msg = "Error: " + ex.Message; }
     }
 
     async Task GrantGift()
     {
         isError = false; Msg = null;
-        if (string.IsNullOrWhiteSpace(PhoneGift)) { isError = true; Msg = "Telefon numarası girin."; return; }
+        if (string.IsNullOrWhiteSpace(PhoneGift)) { isError = true; Msg = "Enter a phone number."; return; }
         try
         {
             await DbService.GrantGiftPacketAsync(PhoneGift, GiftPacketId);
-            Msg = "✅ Hediye paketi tanımlandı ve 30 günlük bekleme süresi eklendi!";
+            Msg = "✅ Gift package granted and a 30-day cooldown has been added!";
         }
-        catch (Exception ex) { isError = true; Msg = "Hata: " + ex.Message; }
+        catch (Exception ex) { isError = true; Msg = "Error: " + ex.Message; }
     }
 }

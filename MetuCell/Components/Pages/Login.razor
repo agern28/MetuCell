@@ -41,14 +41,14 @@
 <div class="login-wrap">
     <div class="login-card animate__animated animate__fadeInUp">
         <div class="login-logo">MetuCell</div>
-        <p class="login-sub">Dijital İşlemler Merkezi'ne giriş yapın</p>
+        <p class="login-sub">Sign in to the Digital Operations Center</p>
 
         <div class="mode-seg">
             <button class="@(IsAdminMode ? "" : "on")" @onclick="() => SetMode(false)">
-                <i class="bi bi-person"></i> Müşteri
+                <i class="bi bi-person"></i> Customer
             </button>
             <button class="@(IsAdminMode ? "on admin" : "")" @onclick="() => SetMode(true)">
-                <i class="bi bi-shield-lock"></i> Yönetici
+                <i class="bi bi-shield-lock"></i> Admin
             </button>
         </div>
 
@@ -56,25 +56,25 @@
         {
             <div class="field-icon mb-3">
                 <i class="bi bi-telephone"></i>
-                <input type="text" class="form-control" @bind="Phone" placeholder="Telefon Numarası" />
+                <input type="text" class="form-control" @bind="Phone" placeholder="Phone Number" />
             </div>
         }
         else
         {
             <div class="field-icon mb-3">
                 <i class="bi bi-person-badge"></i>
-                <input type="text" class="form-control" @bind="Username" placeholder="Yönetici Kullanıcı Adı" />
+                <input type="text" class="form-control" @bind="Username" placeholder="Admin Username" />
             </div>
         }
 
         <div class="field-icon mb-4">
             <i class="bi bi-lock"></i>
-            <input type="password" class="form-control" @bind="Password" placeholder="Şifre" @onkeyup="OnKey" />
+            <input type="password" class="form-control" @bind="Password" placeholder="Password" @onkeyup="OnKey" />
         </div>
 
         <button class="btn @(IsAdminMode ? "btn-warning" : "btn-primary") w-100 p-3 fw-bold fs-6"
                 @onclick="DoLogin" disabled="@busy">
-            @(busy ? "Kontrol ediliyor..." : (IsAdminMode ? "YÖNETİCİ GİRİŞİ" : "GİRİŞ YAP"))
+            @(busy ? "Checking..." : (IsAdminMode ? "ADMIN LOGIN" : "LOG IN"))
         </button>
 
         @if (ErrorMessage != null)
@@ -123,10 +123,10 @@
                 // Yonetici girisi uygulama icinde sabittir (veritabani degisikligi yok).
                 if (Username == ADMIN_USER && Password == ADMIN_PASS)
                 {
-                    AppState.LoginAdmin("Sistem Yöneticisi");
+                    AppState.LoginAdmin("System Administrator");
                     NavManager.NavigateTo("admin");
                 }
-                else ErrorMessage = "Hatalı yönetici adı veya şifre!";
+                else ErrorMessage = "Incorrect admin username or password!";
             }
             else
             {
@@ -136,12 +136,12 @@
                     AppState.LoginUser(Phone, res.DisplayName, res.CustomerId, res.IsBusiness);
                     NavManager.NavigateTo("");
                 }
-                else ErrorMessage = "Hatalı telefon numarası veya şifre!";
+                else ErrorMessage = "Incorrect phone number or password!";
             }
         }
         catch (Exception ex)
         {
-            ErrorMessage = "Bağlantı hatası: " + ex.Message;
+            ErrorMessage = "Connection error: " + ex.Message;
         }
         finally { busy = false; }
     }

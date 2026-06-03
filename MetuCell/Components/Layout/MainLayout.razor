@@ -112,37 +112,40 @@
             @if (AppState.IsAdmin)
             {
                 <NavLink class="nav-pill admin" href="admin" Match="NavLinkMatch.All">
-                    <i class="bi bi-speedometer2"></i> Yönetici Paneli
+                    <i class="bi bi-speedometer2"></i> Admin Panel
                 </NavLink>
                 <NavLink class="nav-pill" href="add-customer">
-                    <i class="bi bi-person-plus-fill"></i> Müşteri
+                    <i class="bi bi-person-plus-fill"></i> Customer
                 </NavLink>
                 <NavLink class="nav-pill" href="assign-line">
-                    <i class="bi bi-sim-fill"></i> Hat Provizyon
+                    <i class="bi bi-sim-fill"></i> Line Provisioning
                 </NavLink>
                 <NavLink class="nav-pill" href="manage-usage">
-                    <i class="bi bi-sliders"></i> Kullanım & Promosyon
+                    <i class="bi bi-sliders"></i> Usage & Promotions
+                </NavLink>
+                <NavLink class="nav-pill" href="manage-accounts">
+                    <i class="bi bi-tools"></i> Accounts
                 </NavLink>
                 <NavLink class="nav-pill" href="reports">
-                    <i class="bi bi-bar-chart-fill"></i> Raporlar
+                    <i class="bi bi-bar-chart-fill"></i> Reports
                 </NavLink>
             }
             else
             {
                 <NavLink class="nav-pill" href="" Match="NavLinkMatch.All">
-                    <i class="bi bi-grid-1x2-fill"></i> Panelim
+                    <i class="bi bi-grid-1x2-fill"></i> Dashboard
                 </NavLink>
                 @if (AppState.IsBusiness)
                 {
                     <NavLink class="nav-pill" href="my-team">
-                        <i class="bi bi-people-fill"></i> Çalışanlarım
+                        <i class="bi bi-people-fill"></i> My Team
                     </NavLink>
                 }
                 <NavLink class="nav-pill" href="store">
-                    <i class="bi bi-bag-fill"></i> Paket Al
+                    <i class="bi bi-bag-fill"></i> Store
                 </NavLink>
                 <NavLink class="nav-pill gift" href="hediye-carki">
-                    <i class="bi bi-gift-fill"></i> Salla Kazan
+                    <i class="bi bi-gift-fill"></i> Shake & Win
                 </NavLink>
             }
         </nav>
@@ -152,14 +155,14 @@
                 <div class="nm">@AppState.LoggedInName</div>
                 @if (AppState.IsAdmin)
                 {
-                    <span class="role-badge admin">Yönetici</span>
+                    <span class="role-badge admin">Admin</span>
                 }
                 else
                 {
                     <div class="ph">@AppState.LoggedInPhone</div>
                 }
             </div>
-            <button class="icon-btn" title="Çıkış Yap" @onclick="Logout">
+            <button class="icon-btn" title="Log Out" @onclick="Logout">
                 <i class="bi bi-power"></i>
             </button>
         </div>
@@ -168,7 +171,7 @@
     {
         <div class="nav-right" style="flex:1; justify-content:flex-end;">
             <NavLink class="nav-pill" href="login">
-                <i class="bi bi-box-arrow-in-right"></i> Giriş Yap
+                <i class="bi bi-box-arrow-in-right"></i> Log In
             </NavLink>
         </div>
     }

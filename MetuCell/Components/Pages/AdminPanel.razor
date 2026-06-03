@@ -42,8 +42,8 @@
     <div class="admin-hero">
         <div class="badge-ic"><i class="bi bi-shield-lock-fill"></i></div>
         <div>
-            <h1>Yönetici Paneli</h1>
-            <p>Hoş geldin, @AppState.LoggedInName. Tüm operasyonel işlemlere buradan erişebilirsin.</p>
+            <h1>Admin Panel</h1>
+            <p>Welcome, @AppState.LoggedInName. You can access all operational actions from here.</p>
         </div>
     </div>
 
@@ -51,29 +51,36 @@
         <a class="admin-tile" href="add-customer">
             <div class="ic"><i class="bi bi-person-plus-fill"></i></div>
             <span class="tag">INSERT</span>
-            <div class="ttl">Müşteri Kaydı</div>
-            <div class="dsc">Yeni bireysel veya kurumsal hesap sahibi tanımla.</div>
+            <div class="ttl">Customer Registration</div>
+            <div class="dsc">Create a new individual or business account holder.</div>
         </a>
 
         <a class="admin-tile" href="assign-line">
             <div class="ic"><i class="bi bi-sim-fill"></i></div>
             <span class="tag">INSERT</span>
-            <div class="ttl">Hat Provizyon</div>
-            <div class="dsc">SIM kartı ve numarayı bir kullanıcıya bağla.</div>
+            <div class="ttl">Line Provisioning</div>
+            <div class="dsc">Bind a SIM card and number to a user.</div>
         </a>
 
         <a class="admin-tile" href="manage-usage">
             <div class="ic"><i class="bi bi-sliders"></i></div>
             <span class="tag">UPDATE</span>
-            <div class="ttl">Kullanım & Promosyon</div>
-            <div class="dsc">Kota düş veya hatta hediye paketi tanımla.</div>
+            <div class="ttl">Usage & Promotions</div>
+            <div class="dsc">Deduct quota or grant a gift package to a line.</div>
+        </a>
+
+        <a class="admin-tile" href="manage-accounts">
+            <div class="ic"><i class="bi bi-tools"></i></div>
+            <span class="tag">UPDATE / DELETE</span>
+            <div class="ttl">Account &amp; Maintenance</div>
+            <div class="dsc">Update a profile, renew billing cycles, or delete a line/customer.</div>
         </a>
 
         <a class="admin-tile gold" href="reports">
             <div class="ic"><i class="bi bi-bar-chart-fill"></i></div>
             <span class="tag">QUERY / DELETE</span>
-            <div class="ttl">Sistem Raporları</div>
-            <div class="dsc">Kurumsal kullanıcılar, toplam fatura, PUK ve bakım işlemleri.</div>
+            <div class="ttl">System Reports</div>
+            <div class="dsc">Business users, total bill, PUK and maintenance operations.</div>
         </a>
     </div>
 </div>

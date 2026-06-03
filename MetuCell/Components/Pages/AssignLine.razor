@@ -18,24 +18,24 @@
 else
 {
     <div class="assign-card animate__animated animate__fadeInUp">
-        <h3 class="fw-bold mb-1" style="color: var(--accent);"><i class="bi bi-sim-fill"></i> Mevcut Müşteriye Hat Ekle</h3>
-        <p class="text-secondary mb-4">Sisteme yeni bir SIM + telefon numarası üretilir. SIM ID, PUK ve numara otomatik atanır.</p>
+        <h3 class="fw-bold mb-1" style="color: var(--accent);"><i class="bi bi-sim-fill"></i> Add Line to Existing Customer</h3>
+        <p class="text-secondary mb-4">A new SIM + phone number is generated. SIM ID, PUK and number are assigned automatically.</p>
 
         <div class="row g-3">
-            <div class="col-md-6"><label>Müşteri ID</label><input type="number" class="form-control" @bind="CustomerId" placeholder="Örn: 1" /></div>
+            <div class="col-md-6"><label>Customer ID</label><input type="number" class="form-control" @bind="CustomerId" placeholder="e.g. 1" /></div>
         </div>
 
         <hr class="my-4" />
-        <div class="sec-label mb-2"><i class="bi bi-sim"></i> SIM Bilgisi</div>
+        <div class="sec-label mb-2"><i class="bi bi-sim"></i> SIM Details</div>
         <div class="row g-3">
             <div class="col-md-6">
-                <label>Şebeke</label>
+                <label>Network Range</label>
                 <select class="form-select" @bind="NetworkRange">
                     <option value="2G">2G</option><option value="3G">3G</option><option value="4G">4G</option><option value="5G">5G</option>
                 </select>
             </div>
             <div class="col-md-6">
-                <label>SIM Tipi</label>
+                <label>SIM Type</label>
                 <select class="form-select" @bind="SimType">
                     <option value="Standard">Standard</option><option value="Micro">Micro</option><option value="Nano">Nano</option><option value="eSIM">eSIM</option>
                 </select>
@@ -43,34 +43,34 @@ else
         </div>
 
         <hr class="my-4" />
-        <div class="sec-label mb-2"><i class="bi bi-person-vcard"></i> Bu numara kimin için?</div>
+        <div class="sec-label mb-2"><i class="bi bi-person-vcard"></i> Who is this number for?</div>
         <div class="seg mb-3">
-            <button class="@(ForSelf ? "on" : "")" @onclick="() => ForSelf = true"><i class="bi bi-person-check"></i> Müşterinin kendisi</button>
-            <button class="@(ForSelf ? "" : "on")" @onclick="() => ForSelf = false"><i class="bi bi-people"></i> Başka bir kullanıcı</button>
+            <button class="@(ForSelf ? "on" : "")" @onclick="() => ForSelf = true"><i class="bi bi-person-check"></i> The customer themselves</button>
+            <button class="@(ForSelf ? "" : "on")" @onclick="() => ForSelf = false"><i class="bi bi-people"></i> Another user</button>
         </div>
 
         @if (ForSelf)
         {
-            <p class="text-secondary small"><i class="bi bi-info-circle"></i> Kullanıcı bilgileri müşterinin kendi kaydından otomatik alınır (yalnızca bireysel müşteri).</p>
+            <p class="text-secondary small"><i class="bi bi-info-circle"></i> User details are taken automatically from the customer's own record (individual customers only).</p>
         }
         else
         {
             <div class="row g-3">
                 <div class="col-md-6"><label>TRNC ID</label><input class="form-control" @bind="TrnId" /></div>
-                <div class="col-md-6"><label>Doğum Tarihi</label><input type="date" class="form-control" @bind="Dob" /></div>
-                <div class="col-md-6"><label>Ad</label><input class="form-control" @bind="FirstName" /></div>
-                <div class="col-md-6"><label>Soyad</label><input class="form-control" @bind="LastName" /></div>
+                <div class="col-md-6"><label>Date of Birth</label><input type="date" class="form-control" @bind="Dob" /></div>
+                <div class="col-md-6"><label>First Name</label><input class="form-control" @bind="FirstName" /></div>
+                <div class="col-md-6"><label>Last Name</label><input class="form-control" @bind="LastName" /></div>
                 <div class="col-md-6">
-                    <label>Cinsiyet</label>
+                    <label>Gender</label>
                     <select class="form-select" @bind="Gender">
-                        <option value="Male">Erkek</option><option value="Female">Kadın</option><option value="Other">Diğer</option>
+                        <option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option>
                     </select>
                 </div>
             </div>
         }
 
         <button class="btn btn-primary w-100 mt-4 py-2" @onclick="Provision" disabled="@busy">
-            @(busy ? "İşleniyor..." : "HAT OLUŞTUR")
+            @(busy ? "Processing..." : "CREATE LINE")
         </button>
 
         @if (Message != null)
@@ -98,19 +98,19 @@ else
     async Task Provision()
     {
         isError = false; Message = null;
-        if (CustomerId <= 0) { isError = true; Message = "Geçerli bir Müşteri ID girin."; return; }
+        if (CustomerId <= 0) { isError = true; Message = "Enter a valid Customer ID."; return; }
         if (!ForSelf && (string.IsNullOrWhiteSpace(TrnId) || string.IsNullOrWhiteSpace(FirstName)))
-        { isError = true; Message = "Yeni kullanıcı için TRNC ID ve Ad zorunludur."; return; }
+        { isError = true; Message = "TRNC ID and First Name are required for a new user."; return; }
 
         busy = true;
         try
         {
             var phone = await DbService.ProvisionLineForCustomerAsync(
                 CustomerId, NetworkRange, SimType, ForSelf, TrnId, FirstName, LastName, Gender, Dob);
-            Message = $"✅ Hat oluşturuldu. Yeni numara: {phone}";
+            Message = $"✅ Line created. New number: {phone}";
             TrnId = FirstName = LastName = "";
         }
-        catch (Exception ex) { isError = true; Message = "Hata: " + ex.Message; }
+        catch (Exception ex) { isError = true; Message = "Error: " + ex.Message; }
         finally { busy = false; }
     }
 }

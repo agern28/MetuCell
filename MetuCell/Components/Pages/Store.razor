@@ -17,13 +17,28 @@
     .pkt .row-q { display: flex; justify-content: space-between; font-size: .88rem; color: var(--text-muted); }
     .pkt .row-q b { color: var(--text); }
     .intl { font-size: .76rem; color: var(--gold); }
+    .line-picker { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 18px 22px; margin-bottom: 24px; }
+    .line-picker label { display: block; font-weight: 700; color: var(--text-muted); margin-bottom: 8px; }
 </style>
 
 <div class="animate__animated animate__fadeIn">
     <div class="store-hero">
-        <h1><i class="bi bi-bag-fill"></i> Paket Mağazası</h1>
-        <p>@AppState.LoggedInName — hattınıza (@AppState.LoggedInPhone) yeni bir paket tanımlayın.</p>
+        <h1><i class="bi bi-bag-fill"></i> Package Store</h1>
+        <p>@AppState.LoggedInName — add a new package to your line (@AppState.LoggedInPhone).</p>
     </div>
+
+    @if (AppState.IsBusiness && lines.Count > 0)
+    {
+        <div class="line-picker">
+            <label><i class="bi bi-person-lines-fill"></i> Which line should we add the package to?</label>
+            <select class="form-select" @bind="targetPhone">
+                @foreach (var l in lines)
+                {
+                    <option value="@l.Phone">@l.FirstName @l.LastName — @l.Phone@(l.Phone == AppState.LoggedInPhone ? " (your line)" : "")</option>
+                }
+            </select>
+        </div>
+    }
 
     @if (isLoading)
     {
@@ -42,12 +57,12 @@
                 <div class="pkt">
                     <span class="type @(p.PlanType == "Post-Paid" ? "post" : "pre")">@p.PlanType</span>
                     <div class="fee">@p.Fee.ToString("0") ₺</div>
-                    <div class="row-q"><span>İnternet</span><b>@p.InternetSize MB</b></div>
+                    <div class="row-q"><span>Internet</span><b>@p.InternetSize MB</b></div>
                     <div class="row-q"><span>SMS</span><b>@p.SmsCount</b></div>
-                    <div class="row-q"><span>Dakika</span><b>@p.MinuteCount</b></div>
-                    @if (p.International) { <div class="intl"><i class="bi bi-globe"></i> Yurt dışı kullanım dâhil</div> }
+                    <div class="row-q"><span>Minutes</span><b>@p.MinuteCount</b></div>
+                    @if (p.International) { <div class="intl"><i class="bi bi-globe"></i> International usage included</div> }
                     <button class="btn btn-primary mt-2" @onclick="() => Buy(p)" disabled="@busy">
-                        <i class="bi bi-cart-check"></i> Satın Al
+                        <i class="bi bi-cart-check"></i> Buy
                     </button>
                 </div>
             }
@@ -57,6 +72,8 @@
 
 @code {
     List<MetuCell.Services.PacketCatalogItem> packets = new();
+    List<MetuCell.Services.CorporateLine> lines = new();
+    string targetPhone;
     bool isLoading = true, busy = false, isError = false;
     string Message;
 
@@ -66,6 +83,10 @@
         if (!AppState.IsLoggedIn) { NavManager.NavigateTo("/login"); return; }
         if (AppState.IsAdmin) { NavManager.NavigateTo("admin"); return; }
 
+        targetPhone = AppState.LoggedInPhone;                 // varsayilan: kendi hatti
+        if (AppState.IsBusiness)                              // kurumsal -> sirket hatlarini getir
+            lines = await DbService.GetCorporateLinesAsync(AppState.CustomerId);
+
         packets = await DbService.GetBuyablePacketsAsync();
         isLoading = false;
     }
@@ -73,12 +94,13 @@
     async Task Buy(MetuCell.Services.PacketCatalogItem p)
     {
         busy = true; Message = null; isError = false;
+        var phone = string.IsNullOrEmpty(targetPhone) ? AppState.LoggedInPhone : targetPhone;
         try
         {
-            await DbService.PurchasePacketAsync(AppState.LoggedInPhone, p.PacketId);
-            Message = $"✅ Tamamdır, paketi aldın! {p.PlanType} paketi hattına tanımlandı.";
+            await DbService.PurchasePacketAsync(phone, p.PacketId);
+            Message = $"✅ Done! The {p.PlanType} package has been added to {phone}.";
         }
-        catch (Exception ex) { isError = true; Message = "Hata: " + ex.Message; }
+        catch (Exception ex) { isError = true; Message = "Error: " + ex.Message; }
         finally { busy = false; }
     }
 }

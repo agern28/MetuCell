@@ -1,4 +1,4 @@
-﻿@page "/"
+@page "/"
 @using MetuCell.Models
 @inject MetuCell.Services.DatabaseService DbService
 @inject MetuCell.Services.AppState AppState
@@ -11,167 +11,188 @@
         background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
         border-radius: 30px;
         border: 1px solid #334155;
-        margin-bottom: 40px;
+        margin-bottom: 32px;
         box-shadow: 0 15px 35px rgba(0,0,0,0.2);
     }
 
-        .dashboard-hero h1 {
-            color: #22d3ee;
-            font-weight: 800;
-        }
+        .dashboard-hero h1 { color: #22d3ee; font-weight: 800; }
+        .dashboard-hero p  { color: #94a3b8; }
 
-        .dashboard-hero p {
-            color: #94a3b8;
-        }
-
-    .usage-container {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        gap: 30px;
+    .section-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 0 6px 14px;
     }
+
+        .section-head h2 {
+            font-size: 1.05rem;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            color: #94a3b8;
+            margin: 0;
+        }
+
+    /* Yatay kaydirilabilir kart serisi (Turkcell "Kalan Kullanimlarim" tarzi) */
+    .usage-scroller {
+        display: flex;
+        gap: 18px;
+        overflow-x: auto;
+        padding: 4px 6px 18px;
+        scroll-snap-type: x mandatory;
+    }
+
+        .usage-scroller::-webkit-scrollbar { height: 6px; }
+        .usage-scroller::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
 
     .usage-card {
-        background: #1e293b;
-        border-radius: 24px;
-        padding: 40px 20px;
+        scroll-snap-align: start;
+        flex: 0 0 auto;
+        width: 300px;
+        background: linear-gradient(135deg, #1e3a8a 0%, #0f172a 100%);
         border: 1px solid #334155;
-        text-align: center;
-        transition: 0.3s;
-    }
-
-        .usage-card:hover {
-            border-color: #22d3ee;
-            transform: translateY(-5px);
-        }
-
-    .gauge-box {
-        position: relative;
-        width: 160px;
-        height: 160px;
-        margin: 0 auto 20px;
-    }
-
-        .gauge-box svg {
-            transform: rotate(-90deg);
-        }
-
-    .circle-bg {
-        fill: none;
-        stroke: #0f172a;
-        stroke-width: 12;
-    }
-
-    .circle-val {
-        fill: none;
-        stroke-width: 12;
-        stroke-linecap: round;
-        transition: stroke-dashoffset 1s ease-out;
-    }
-
-    .inner-label {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        font-size: 1.8rem;
-        font-weight: 800;
+        border-radius: 24px;
+        padding: 22px 24px;
         color: #fff;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        box-shadow: 0 12px 30px rgba(0,0,0,0.25);
     }
 
-    .stat-title {
-        font-size: 1.2rem;
-        font-weight: 700;
+    .card-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+    }
+
+    .card-pkg  { font-size: 0.85rem; font-weight: 700; color: #cbd5e1; }
+    .card-icon { font-size: 1.5rem; }
+    .card-kalan { font-size: 0.8rem; color: #cbd5e1; }
+
+    .card-amount { display: flex; align-items: baseline; flex-wrap: wrap; }
+    .card-big  { font-size: 2.1rem; font-weight: 800; line-height: 1; }
+    .card-unit { font-size: 1.1rem; font-weight: 700; margin-left: 4px; }
+    .card-pct  { font-size: 1.05rem; font-weight: 700; color: #cbd5e1; margin-left: 8px; }
+
+    .bar-track {
+        width: 100%;
+        height: 10px;
+        background: rgba(255,255,255,0.18);
+        border-radius: 999px;
+        overflow: hidden;
+    }
+
+    .bar-fill {
+        height: 100%;
+        border-radius: 999px;
+        transition: width 1s ease-out;
+    }
+
+    .card-foot {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 10px;
+        font-size: 0.82rem;
+        color: #cbd5e1;
+    }
+
+    .days-left { font-weight: 800; color: #fff; white-space: nowrap; }
+
+    .empty-box {
+        text-align: center;
+        padding: 50px 20px;
+        background: #1e293b;
+        border: 1px dashed #334155;
+        border-radius: 24px;
         color: #94a3b8;
-        margin-top: 15px;
-    }
-
-    .stat-desc {
-        font-size: 1rem;
-        color: #22d3ee;
-        font-weight: 600;
     }
 
     @@keyframes fadeIn {
-        from {
-            opacity: 0;
-            transform: translateY(20px);
-        }
-
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
+        from { opacity: 0; transform: translateY(20px); }
+        to   { opacity: 1; transform: translateY(0); }
     }
 
-    .animate-up {
-        animation: fadeIn 0.6s ease-out;
-    }
+    .animate-up { animation: fadeIn 0.6s ease-out; }
 </style>
 
 @if (AppState.IsLoggedIn)
 {
     <div class="animate-up">
         <div class="dashboard-hero">
-            <h1>Hoş Geldin, @AppState.LoggedInName</h1>
-            <p class="mb-0">@AppState.LoggedInPhone hattına ait güncel kullanım verileri aşağıdadır.</p>
+            <h1>Welcome, @AppState.LoggedInName</h1>
+            <p class="mb-0">Your remaining usage for line @AppState.LoggedInPhone is shown below.</p>
+        </div>
+
+        <div class="section-head">
+            <h2>MY REMAINING USAGE</h2>
         </div>
 
         @if (isLoading)
         {
             <div class="text-center py-5"><div class="spinner-border text-info"></div></div>
         }
-        else if (balance != null)
+        else if (packets == null || packets.Count == 0)
         {
-            <div class="usage-container">
-                <!-- INTERNET -->
-                <div class="usage-card">
-                    <div class="gauge-box">
-                        <svg width="160" height="160">
-                            <circle class="circle-bg" cx="80" cy="80" r="72"></circle>
-                            <circle class="circle-val" cx="80" cy="80" r="72" stroke="#22d3ee"
-                                    style="stroke-dasharray: 452; stroke-dashoffset: @(452 - (452 * (balance.InternetLeft / 10000.0)))"></circle>
-                        </svg>
-                        <div class="inner-label">%@((balance.InternetLeft / 100))</div>
-                    </div>
-                    <div class="stat-title">İNTERNET</div>
-                    <div class="stat-desc">@balance.InternetLeft MB Kalan</div>
-                </div>
+            <div class="empty-box">
+                <i class="bi bi-inbox" style="font-size:2rem;"></i>
+                <p class="mb-0 mt-2">This line has no active packages.</p>
+            </div>
+        }
+        else
+        {
+            <div class="usage-scroller">
+                @foreach (var pk in packets)
+                {
+                    var items = new List<(string Title, string Icon, string Unit, int Left, int Total, string Color, bool IsGb)>
+                    {
+                        ("Internet", "bi-wifi",          "GB",  pk.InternetLeft, pk.InternetSize, "#22d3ee", true),
+                        ("Minutes",  "bi-telephone-fill","min",  pk.MinuteLeft,   pk.MinuteCount,  "#34d399", false),
+                        ("SMS",      "bi-chat-dots-fill","SMS", pk.SmsLeft,      pk.SmsCount,     "#fbbf24", false),
+                    };
 
-                <!-- DAKİKA -->
-                <div class="usage-card">
-                    <div class="gauge-box">
-                        <svg width="160" height="160">
-                            <circle class="circle-bg" cx="80" cy="80" r="72"></circle>
-                            <circle class="circle-val" cx="80" cy="80" r="72" stroke="#22d3ee"
-                                    style="stroke-dasharray: 452; stroke-dashoffset: @(452 - (452 * (balance.MinuteLeft / 1000.0)))"></circle>
-                        </svg>
-                        <div class="inner-label">%@((balance.MinuteLeft / 10))</div>
-                    </div>
-                    <div class="stat-title">DAKİKA</div>
-                    <div class="stat-desc">@balance.MinuteLeft DK Kalan</div>
-                </div>
+                    foreach (var it in items)
+                    {
+                        if (it.Total <= 0) { continue; } // bu paket bu kaynagi icermiyorsa kart cikma
 
-                <!-- SMS -->
-                <div class="usage-card">
-                    <div class="gauge-box">
-                        <svg width="160" height="160">
-                            <circle class="circle-bg" cx="80" cy="80" r="72"></circle>
-                            <circle class="circle-val" cx="80" cy="80" r="72" stroke="#fbbf24"
-                                    style="stroke-dasharray: 452; stroke-dashoffset: @(452 - (452 * (balance.SmsLeft / 1000.0)))"></circle>
-                        </svg>
-                        <div class="inner-label">%@((balance.SmsLeft / 10))</div>
-                    </div>
-                    <div class="stat-title">SMS</div>
-                    <div class="stat-desc" style="color:#fbbf24;">@balance.SmsLeft SMS Kalan</div>
-                </div>
+                        <div class="usage-card">
+                            <div class="card-top">
+                                <span class="card-pkg">@it.Title • @PacketName(pk)</span>
+                                <i class="bi @it.Icon card-icon" style="color:@it.Color;"></i>
+                            </div>
+
+                            <div>
+                                <div class="card-kalan">Remaining</div>
+                                <div class="card-amount">
+                                    <span class="card-big">@Big(it.Left, it.IsGb)</span>
+                                    <span class="card-unit">@it.Unit</span>
+                                    <span class="card-pct">(%@Pct(it.Left, it.Total))</span>
+                                </div>
+                            </div>
+
+                            <div class="bar-track">
+                                <div class="bar-fill" style="width:@(Pct(it.Left, it.Total))%; background:@it.Color;"></div>
+                            </div>
+
+                            <div class="card-foot">
+                                <div>Valid until:<br />@DueText(pk.DueDate)</div>
+                                <div class="days-left">@DaysText(pk.DueDate)</div>
+                            </div>
+                        </div>
+                    }
+                }
             </div>
         }
     </div>
 }
 
 @code {
-    BalanceReport balance;
+    List<PacketUsage> packets;
     bool isLoading = false;
+
+    static readonly System.Globalization.CultureInfo Loc = new("en-US");
+    static readonly System.Globalization.CultureInfo Inv = System.Globalization.CultureInfo.InvariantCulture;
 
     protected override async Task OnInitializedAsync()
     {
@@ -182,7 +203,31 @@
     async Task LoadData()
     {
         isLoading = true;
-        balance = await DbService.GetRemainingBalancesAsync(AppState.LoggedInPhone);
+        packets = await DbService.GetActivePacketsAsync(AppState.LoggedInPhone);
         isLoading = false;
     }
+
+    // Kalan / toplam -> %, 0..100 araliginda kirpilir (toplam 0 ise %0)
+    int Pct(int left, int total)
+        => total > 0 ? Math.Clamp((int)Math.Round(100.0 * left / total), 0, 100) : 0;
+
+    // Buyuk rakam: internet GB'a cevrilir (MB/1000), digerleri oldugu gibi
+    string Big(int left, bool isGb)
+        => isGb ? (left / 1000.0).ToString("0.#", Inv) : left.ToString();
+
+    // Son gecerlilik tarihi (Turkce ay adi)
+    string DueText(System.DateTime due) => due.ToString("dd MMM yyyy", Loc);
+
+    // Kalan gun metni
+    string DaysText(System.DateTime due)
+    {
+        int d = (due.Date - System.DateTime.Today).Days;
+        if (d < 0) return "Expired";
+        if (d == 0) return "Last day today";
+        return $"{d} Days Left";
+    }
+
+    // Paket icin okunabilir ad
+    string PacketName(PacketUsage pk)
+        => pk.PlanType == "Gift" ? $"Gift #{pk.PacketId}" : $"{pk.PlanType} #{pk.PacketId}";
 }
