@@ -39,7 +39,14 @@
         @if (CustomerType == "Individual")
         {
             <div class="row g-3">
-                <div class="col-md-6"><label>TRNC ID</label><input class="form-control" @bind="TrncId" /></div>
+                <div class="col-md-6"><label>TRNC ID</label>
+                    <div class="input-group">
+                        <input type="@(ShowTrnInd ? "text" : "password")" class="form-control" @bind="TrncId" />
+                        <button class="btn btn-outline-secondary" type="button" tabindex="-1" @onclick="() => ShowTrnInd = !ShowTrnInd">
+                            <i class="bi @(ShowTrnInd ? "bi-eye-slash" : "bi-eye")"></i>
+                        </button>
+                    </div>
+                </div>
                 <div class="col-md-6"><label>Date of Birth</label><input class="form-control" type="date" @bind="Dob" /></div>
                 <div class="col-md-6"><label>First Name</label><input class="form-control" @bind="FirstName" /></div>
                 <div class="col-md-6"><label>Last Name</label><input class="form-control" @bind="LastName" /></div>
@@ -62,7 +69,14 @@
             <hr class="my-4" />
             <div class="sec-label mb-2"><i class="bi bi-person-vcard"></i> First Line User (Employee / Authorized)</div>
             <div class="row g-3">
-                <div class="col-md-6"><label>Employee TRNC ID</label><input class="form-control" @bind="EmpTrnc" /></div>
+                <div class="col-md-6"><label>Employee TRNC ID</label>
+                    <div class="input-group">
+                        <input type="@(ShowTrnEmp ? "text" : "password")" class="form-control" @bind="EmpTrnc" />
+                        <button class="btn btn-outline-secondary" type="button" tabindex="-1" @onclick="() => ShowTrnEmp = !ShowTrnEmp">
+                            <i class="bi @(ShowTrnEmp ? "bi-eye-slash" : "bi-eye")"></i>
+                        </button>
+                    </div>
+                </div>
                 <div class="col-md-6"><label>Date of Birth</label><input class="form-control" type="date" @bind="EmpDob" /></div>
                 <div class="col-md-6"><label>First Name</label><input class="form-control" @bind="EmpFirst" /></div>
                 <div class="col-md-6"><label>Last Name</label><input class="form-control" @bind="EmpLast" /></div>
@@ -108,6 +122,7 @@
 @code {
     string CustomerType = "Individual";
     string Address = "", Email = "", Password = "", Message;
+    bool ShowTrnInd = false, ShowTrnEmp = false; // sensitive: TRNC ID input is masked by default with a reveal toggle
     // Bireysel
     string TrncId = "", FirstName = "", LastName = "", Gender = "Male";
     DateTime Dob = DateTime.Today.AddYears(-25);
@@ -153,7 +168,7 @@
                     NetworkRange, SimType, EmpTrnc, EmpFirst, EmpLast, EmpGender, EmpDob);
             }
 
-            Message = $"✅ Customer created and first line assigned. New number: {phone}";
+            Message = $"Customer created and first line assigned. New number: {phone}";
             Address = Email = Password = TrncId = FirstName = LastName = "";
             CompanyName = TaxNumber = BusinessNumber = EmpTrnc = EmpFirst = EmpLast = "";
         }

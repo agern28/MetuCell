@@ -14,7 +14,7 @@
         text-align: center;
     }
 
-    /* Futuristic gift box */
+    /*  gift box */
     .gift-box-unit {
         width: 220px;
         height: 220px;
@@ -36,7 +36,7 @@
             box-shadow: 0 0 60px rgba(34, 211, 238, 0.5);
         }
 
-    /* Shake animation - fixed with @@ */
+    /* Shake animation fixed with @@ */
     .shaking {
         animation: boxShake 0.5s infinite;
     }
@@ -166,7 +166,7 @@
 
         try
         {
-            // 1. Veritabanindan hak kontrolu yap (Cooldown)
+            // Veritabanindan hak kontrolu yap (Cooldown)
             var eligibleLines = await DbService.GetEligibleLinesForGiftAsync();
 
             if (!eligibleLines.Contains(AppState.LoggedInPhone))
@@ -175,11 +175,11 @@
                 return;
             }
 
-            // 2. Animasyon baslat
+            // Animasyon baslat
             isSpinning = true;
             await Task.Delay(2500); // 2.5 saniye salla
 
-            // 3. Hediye belirle (GERCEK katalog ID'leri: 301/302/303)
+            // 3. Hediye belirle GERCEK katalog ID'leri arasonda 301/302/303)
             var gifts = new (int Id, string Name)[]
             {
                 (301, "1 GB Bonus Internet"),
@@ -189,7 +189,7 @@
             var won = gifts[new Random().Next(gifts.Length)];
             wonGiftName = won.Name;
 
-            // 4. Veritabanina isle (gecerli hediye paketi)
+            // Veritabanina isle (gecerli hediye paketi)
             await DbService.GrantGiftPacketAsync(AppState.LoggedInPhone, won.Id);
 
             isSpinning = false;

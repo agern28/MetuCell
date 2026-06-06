@@ -82,21 +82,18 @@
             <div class="alert alert-danger mt-3 mb-0 text-center fw-bold">@ErrorMessage</div>
         }
 
-        <div class="hint">
-            @(IsAdminMode ? "Demo: admin / Admin!2026" : "Demo: 5551000001 / Ahmet!1234")
-        </div>
     </div>
 </div>
 
 @code {
     bool IsAdminMode = false;
-    string Phone = "5551000001";
-    string Username = "admin";
-    string Password = "Ahmet!1234";
+    string Phone = "";
+    string Username = "";
+    string Password = "";
     string ErrorMessage;
     bool busy = false;
 
-    // Yonetici girisi uygulama icinde sabit tutulur (orijinal veritabani degistirilmez).
+    // Yonetici girisi uygulama icinde sabit tutulur (orijinal veritabani degistirilmez öyle olacak).
     const string ADMIN_USER = "admin";
     const string ADMIN_PASS = "Admin!2026";
 
@@ -104,7 +101,7 @@
     {
         IsAdminMode = admin;
         ErrorMessage = null;
-        Password = admin ? "Admin!2026" : "Ahmet!1234";
+        Password = "";
     }
 
     async Task OnKey(KeyboardEventArgs e)

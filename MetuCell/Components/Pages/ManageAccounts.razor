@@ -16,10 +16,10 @@
     <p class="text-secondary mb-4">Profile updates, billing-cycle renewal and account/line removal. Deletions rely on the schema's <code>ON DELETE CASCADE</code> rules.</p>
 
     <div class="row g-4">
-        <!-- (6.3b) UPDATE customer profile -->
+        <!--  UPDATE customer profile -->
         <div class="col-md-6">
             <div class="ma-card">
-                <h5 style="color: var(--accent);"><i class="bi bi-pencil-square"></i> Update Customer Profile (UPDATE)</h5>
+                <h5 style="color: var(--accent);"><i class="bi bi-pencil-square"></i> Update Customer Profile</h5>
                 <p class="text-secondary small mb-3">Change the billing address and e-mail of a customer.</p>
                 <label>Customer ID</label>
                 <input class="form-control mb-2" type="number" @bind="ProfileId" placeholder="e.g. 1" />
@@ -31,19 +31,19 @@
             </div>
         </div>
 
-        <!-- (6.3c) UPDATE billing-cycle renewal -->
+        <!--  UPDATE billing-cycle renewal -->
         <div class="col-md-6">
             <div class="ma-card">
-                <h5 style="color: var(--good);"><i class="bi bi-arrow-repeat"></i> Renew Post-Paid Cycle (UPDATE)</h5>
+                <h5 style="color: var(--good);"><i class="bi bi-arrow-repeat"></i> Renew Post-Paid Cycle</h5>
                 <p class="text-secondary small mb-3">Reset quotas and roll the due date forward one month for every post-paid packet whose billing date has arrived.</p>
                 <button class="btn btn-success w-100 mt-2" @onclick="RenewCycle">Run Billing-Cycle Renewal</button>
             </div>
         </div>
 
-        <!-- (6.3f) DELETE mobile line -->
+        <!--  DELETE mobile line -->
         <div class="col-md-6">
             <div class="ma-card">
-                <h5 style="color: var(--bad);"><i class="bi bi-telephone-x"></i> Delete Mobile Line (DELETE)</h5>
+                <h5 style="color: var(--bad);"><i class="bi bi-telephone-x"></i> Delete Mobile Line</h5>
                 <p class="text-secondary small mb-3">Removes the line; its user and packets are deleted by cascade.</p>
                 <label>Phone Number</label>
                 <input class="form-control mb-2" @bind="DeletePhone" placeholder="5551000006" />
@@ -51,10 +51,10 @@
             </div>
         </div>
 
-        <!-- (6.3g) DELETE customer -->
+        <!-- DELETE customer -->
         <div class="col-md-6">
             <div class="ma-card">
-                <h5 style="color: var(--bad);"><i class="bi bi-person-x"></i> Delete Customer (DELETE)</h5>
+                <h5 style="color: var(--bad);"><i class="bi bi-person-x"></i> Delete Customer</h5>
                 <p class="text-secondary small mb-3">Removes the account owner; SIM cards, lines, users and packets cascade.</p>
                 <label>Customer ID</label>
                 <input class="form-control mb-2" type="number" @bind="DeleteCustId" placeholder="e.g. 2" />
@@ -88,7 +88,7 @@
         try
         {
             int n = await DbService.UpdateCustomerProfileAsync(ProfileId, ProfileAddress, ProfileEmail);
-            Msg = n > 0 ? $"✅ Profile updated for customer {ProfileId}." : "No customer found with that ID.";
+            Msg = n > 0 ? $" Profile updated for customer {ProfileId}." : "No customer found with that ID.";
             isError = n == 0;
         }
         catch (Exception ex) { isError = true; Msg = "Error: " + ex.Message; }
@@ -100,7 +100,7 @@
         try
         {
             int n = await DbService.RenewExpiredPostPaidAsync();
-            Msg = $"✅ Billing-cycle renewal completed. {n} post-paid packet(s) renewed.";
+            Msg = $" Billing-cycle renewal completed. {n} post-paid packet(s) renewed.";
         }
         catch (Exception ex) { isError = true; Msg = "Error: " + ex.Message; }
     }
@@ -112,7 +112,7 @@
         try
         {
             int n = await DbService.DeleteMobileLineAsync(DeletePhone);
-            Msg = n > 0 ? $"✅ Line {DeletePhone} deleted (user and packets cascaded)." : "No line found with that number.";
+            Msg = n > 0 ? $" Line {DeletePhone} deleted (user and packets cascaded)." : "No line found with that number.";
             isError = n == 0;
         }
         catch (Exception ex) { isError = true; Msg = "Error: " + ex.Message; }
@@ -125,7 +125,7 @@
         try
         {
             int n = await DbService.DeleteCustomerAsync(DeleteCustId);
-            Msg = n > 0 ? $"✅ Customer {DeleteCustId} deleted (SIM cards, lines, users and packets cascaded)." : "No customer found with that ID.";
+            Msg = n > 0 ? $" Customer {DeleteCustId} deleted (SIM cards, lines, users and packets cascaded)." : "No customer found with that ID.";
             isError = n == 0;
         }
         catch (Exception ex) { isError = true; Msg = "Error: " + ex.Message; }

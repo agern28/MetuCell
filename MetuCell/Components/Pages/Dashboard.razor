@@ -33,7 +33,7 @@
             margin: 0;
         }
 
-    /* Yatay kaydirilabilir kart serisi (Turkcell "Kalan Kullanimlarim" tarzi) */
+    /* Yatay kaydirilabilir kart serisi*/
     .usage-scroller {
         display: flex;
         gap: 18px;
@@ -207,15 +207,15 @@
         isLoading = false;
     }
 
-    // Kalan / toplam -> %, 0..100 araliginda kirpilir (toplam 0 ise %0)
+    // Kalan / toplam  %, 0..100 araliginda kirpilir (toplam 0 ise %0)
     int Pct(int left, int total)
         => total > 0 ? Math.Clamp((int)Math.Round(100.0 * left / total), 0, 100) : 0;
 
-    // Buyuk rakam: internet GB'a cevrilir (MB/1000), digerleri oldugu gibi
+    // Buyuk rakam internet GB'a cevrilir (MB/1000), digerleri oldugu gibi
     string Big(int left, bool isGb)
         => isGb ? (left / 1000.0).ToString("0.#", Inv) : left.ToString();
 
-    // Son gecerlilik tarihi (Turkce ay adi)
+    // Son gecerlilik tarihi 
     string DueText(System.DateTime due) => due.ToString("dd MMM yyyy", Loc);
 
     // Kalan gun metni

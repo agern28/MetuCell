@@ -79,12 +79,12 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // Sadece musteri (admin degil) erisebilir.
+        // Sadece musteri yani admin degilse erisebilir.
         if (!AppState.IsLoggedIn) { NavManager.NavigateTo("/login"); return; }
         if (AppState.IsAdmin) { NavManager.NavigateTo("admin"); return; }
 
-        targetPhone = AppState.LoggedInPhone;                 // varsayilan: kendi hatti
-        if (AppState.IsBusiness)                              // kurumsal -> sirket hatlarini getir
+        targetPhone = AppState.LoggedInPhone;                 // varsayilan kendi hatti
+        if (AppState.IsBusiness)                              // kurumsal ise sirket hatlarini getir
             lines = await DbService.GetCorporateLinesAsync(AppState.CustomerId);
 
         packets = await DbService.GetBuyablePacketsAsync();
@@ -98,7 +98,7 @@
         try
         {
             await DbService.PurchasePacketAsync(phone, p.PacketId);
-            Message = $"✅ Done! The {p.PlanType} package has been added to {phone}.";
+            Message = $" Done! The {p.PlanType} package has been added to {phone}.";
         }
         catch (Exception ex) { isError = true; Message = "Error: " + ex.Message; }
         finally { busy = false; }

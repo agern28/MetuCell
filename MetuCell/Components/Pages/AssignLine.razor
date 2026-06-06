@@ -56,7 +56,14 @@ else
         else
         {
             <div class="row g-3">
-                <div class="col-md-6"><label>TRNC ID</label><input class="form-control" @bind="TrnId" /></div>
+                <div class="col-md-6"><label>TRNC ID</label>
+                    <div class="input-group">
+                        <input type="@(ShowTrn ? "text" : "password")" class="form-control" @bind="TrnId" />
+                        <button class="btn btn-outline-secondary" type="button" tabindex="-1" @onclick="() => ShowTrn = !ShowTrn">
+                            <i class="bi @(ShowTrn ? "bi-eye-slash" : "bi-eye")"></i>
+                        </button>
+                    </div>
+                </div>
                 <div class="col-md-6"><label>Date of Birth</label><input type="date" class="form-control" @bind="Dob" /></div>
                 <div class="col-md-6"><label>First Name</label><input class="form-control" @bind="FirstName" /></div>
                 <div class="col-md-6"><label>Last Name</label><input class="form-control" @bind="LastName" /></div>
@@ -85,6 +92,7 @@ else
     string NetworkRange = "5G", SimType = "eSIM";
     bool ForSelf = false;
     string TrnId = "", FirstName = "", LastName = "", Gender = "Male";
+    bool ShowTrn = false; // sensitive: TRNC ID input is masked by default with a reveal toggle
     DateTime Dob = DateTime.Today.AddYears(-20);
     bool busy = false, isError = false;
     string Message = null;

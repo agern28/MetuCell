@@ -75,7 +75,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // Yetki: giris yapmis, yonetici olmayan ve KURUMSAL musteri olmali.
+        // Yetki giris yapmis, yonetici olmayan ve KURUMSAL musteri olmali.
         if (!AppState.IsLoggedIn) { NavManager.NavigateTo("/login"); return; }
         if (AppState.IsAdmin)     { NavManager.NavigateTo("admin"); return; }
         if (!AppState.IsBusiness) { NavManager.NavigateTo(""); return; } // bireysel goremez

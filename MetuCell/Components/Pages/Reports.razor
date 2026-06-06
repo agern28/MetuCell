@@ -37,7 +37,7 @@
         <h2 style="color: #22d3ee; font-weight: 800; margin-bottom: 30px;">CRM & Reports</h2>
 
         <div class="row">
-            <!-- Query (c): Gift-Eligible Lines (cooldown passed) -->
+            <!--  Gift-Eligible Lines (cooldown passed) -->
             <div class="col-md-6">
                 <div class="crm-card">
                     <div class="title-teal">(c) Gift-Eligible Lines (cooldown passed)</div>
@@ -51,7 +51,7 @@
                     }
                 </div>
             </div>
-            <!-- Query (b): Business User List -->
+            <!--  Business User List -->
             <div class="col-md-6">
                 <div class="crm-card">
                     <div class="title-teal">(b) Business Line Users</div>
@@ -69,7 +69,7 @@
             </div>
         </div>
 
-        <!-- Query (f): Total Bill Calculation -->
+        <!--  Total Bill Calculation -->
         <div class="col-md-6">
             <div class="crm-card">
                 <div class="title-teal">(f) Total Bill Amount (Post-Paid)</div>
@@ -84,7 +84,7 @@
             </div>
         </div>
 
-        <!-- Query (d): PUK ve SIM Bilgisi -->
+        <!--  PUK ve SIM Bilgisi -->
         <div class="col-md-6">
             <div class="crm-card">
                 <div class="title-teal">(d) Locked Line Recovery (PUK & SIM TYPE)</div>
@@ -94,12 +94,18 @@
                 </div>
                 @if (simInfo != null)
                 {
-                    <div class="text-white fw-bold">@simInfo</div>
+                    <div class="text-white fw-bold">
+                        PUK: @(ShowPuk ? simInfo.PukNo : MetuCell.Services.SensitiveMask.MaskPuk(simInfo.PukNo))
+                        &nbsp;|&nbsp; TYPE: @simInfo.SimType
+                        <button class="btn btn-sm btn-link p-0 ms-2" type="button" @onclick="() => ShowPuk = !ShowPuk">
+                            <i class="bi @(ShowPuk ? "bi-eye-slash" : "bi-eye")"></i> @(ShowPuk ? "Hide" : "Reveal")
+                        </button>
+                    </div>
                 }
             </div>
         </div>
 
-        <!-- Query (e) & Transaction: Expiring Packages -->
+        <!--  & Transaction: Expiring Packages -->
         <div class="col-md-6">
             <div class="crm-card">
                 <div class="title-teal">(e) Expiring in 3 Days & Cleanup</div>
@@ -125,7 +131,9 @@
 
 @code {
     int busId, custId;
-    string phoneSearch, simInfo, cleanMessage;
+    string phoneSearch, cleanMessage;
+    SimReport simInfo;
+    bool ShowPuk = false;
     decimal totalFee = -1;
     List<UserReport> users;
     List<string> expiringLines;

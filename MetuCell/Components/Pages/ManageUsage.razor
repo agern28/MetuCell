@@ -16,10 +16,10 @@
     <p class="text-secondary mb-4">Deduct network consumption from the quota or grant a gift package to a line.</p>
 
     <div class="row g-4">
-        <!-- KOTA DUSME (UPDATE) -->
+        <!-- Quota consumption -->
         <div class="col-md-6">
             <div class="mu-card">
-                <h5 style="color: var(--bad);"><i class="bi bi-graph-down-arrow"></i> Network Usage (UPDATE)</h5>
+                <h5 style="color: var(--bad);"><i class="bi bi-graph-down-arrow"></i> Network Usage Consumption</h5>
                 <p class="text-secondary small mb-3">Deducts the consumed amount from the active package.</p>
                 <label>Phone Number</label>
                 <input class="form-control mb-2" @bind="PhoneUsage" placeholder="5551000001" />
@@ -32,10 +32,10 @@
             </div>
         </div>
 
-        <!-- HEDIYE (TRANSACTION) -->
+        <!-- Gift packet -->
         <div class="col-md-6">
             <div class="mu-card">
-                <h5 style="color: var(--good);"><i class="bi bi-gift-fill"></i> Gift Package (TRANSACTION)</h5>
+                <h5 style="color: var(--good);"><i class="bi bi-gift-fill"></i> Gift Package</h5>
                 <p class="text-secondary small mb-3">Moves the cooldown forward and adds an active gift package.</p>
                 <label>Phone Number</label>
                 <input class="form-control mb-2" @bind="PhoneGift" placeholder="5551000004" />
@@ -75,7 +75,7 @@
         try
         {
             var result = await DbService.ConsumeServiceAsync(PhoneUsage, UsedMb, UsedSms, UsedMin);
-            Msg = "✅ " + result;
+            Msg = " " + result;
         }
         catch (Exception ex) { isError = true; Msg = "Error: " + ex.Message; }
     }
@@ -87,7 +87,7 @@
         try
         {
             await DbService.GrantGiftPacketAsync(PhoneGift, GiftPacketId);
-            Msg = "✅ Gift package granted and a 30-day cooldown has been added!";
+            Msg = " Gift package granted and a 30-day cooldown has been added!";
         }
         catch (Exception ex) { isError = true; Msg = "Error: " + ex.Message; }
     }

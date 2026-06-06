@@ -6,25 +6,24 @@ using System.Threading.Tasks;
 
 namespace MetuCell.Services
 {
-    // ==================================================================================
-    //  MetuCell - Data Access Layer (Npgsql / PostgreSQL)
-    //  Tum tablo/kolon isimleri gercek semayla birebir (snake_case; yalniz "User" tirnakli).
-    // ==================================================================================
+    
+    //Data Access Layer (Npgsql / PostgreSQL)
+    
     public class DatabaseService
     {
         private readonly string _connectionString;
         private static readonly Random _rng = new Random();
         public DatabaseService(string connectionString) => _connectionString = connectionString;
 
-        // ==========================================
-        // 1. GIRIS (QUERY)
-        // ==========================================
+        
+        //Login 
+        
         public async Task<LoginResult> LoginAsync(string phone, string password)
         {
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
             var cmd = new NpgsqlCommand(
-                @"SELECT c.customerid,
+                @"SELECT c.customerid, c.password,
                          (bc.customerid IS NOT NULL) AS is_business,
                          COALESCE(bc.company_name, u.first_name || ' ' || u.last_name, 'Customer') AS display_name
                   FROM mobile_line ml
@@ -32,20 +31,40 @@ namespace MetuCell.Services
                   JOIN customer c ON s.customerid = c.customerid
                   LEFT JOIN business_customer bc ON bc.customerid = c.customerid
                   LEFT JOIN ""User"" u ON u.phone_number = ml.phone_number
-                  WHERE ml.phone_number = @p AND c.password = @pw", conn);
+                  WHERE ml.phone_number = @p", conn);
             cmd.Parameters.AddWithValue("p", phone);
-            cmd.Parameters.AddWithValue("pw", password);
-            await using var r = await cmd.ExecuteReaderAsync();
-            return await r.ReadAsync()
-                ? new LoginResult { CustomerId = r.GetInt32(0), IsBusiness = r.GetBoolean(1), DisplayName = r.GetString(2) }
-                : null;
+
+            int customerId; string storedPw; bool isBusiness; string displayName;
+            await using (var r = await cmd.ExecuteReaderAsync())
+            {
+                if (!await r.ReadAsync()) return null;
+                customerId  = r.GetInt32(0);
+                storedPw    = r.GetString(1);
+                isBusiness  = r.GetBoolean(2);
+                displayName = r.GetString(3);
+            }
+
+            // Plaintext never appears in any SQL, verification happens in C#.
+            if (!PasswordHasher.Verify(password, storedPw)) return null;
+
+            // migrate legacy seed plaintext to a bcrypt hash on first successful login.
+            if (!PasswordHasher.IsBcryptHash(storedPw))
+            {
+                await using var up = new NpgsqlCommand(
+                    "UPDATE customer SET password = @new WHERE customerid = @cid", conn);
+                up.Parameters.AddWithValue("new", PasswordHasher.Hash(password));
+                up.Parameters.AddWithValue("cid", customerId);
+                await up.ExecuteNonQueryAsync();
+            }
+
+            return new LoginResult { CustomerId = customerId, IsBusiness = isBusiness, DisplayName = displayName };
         }
 
-        // ==========================================
-        //  ORTAK YARDIMCILAR (otomatik SIM / telefon / hat+user)
-        // ==========================================
 
-        // Otomatik benzersiz telefon numarasi: en buyuk numarayi sayisal alip +1.
+        //  Helpers (automatic SIM / telephone / sim+user)
+
+
+        // Generate a unique phone number automatically, Take the largest number and add 1 to it.
         private async Task<string> GenerateNextPhoneAsync(NpgsqlConnection conn, NpgsqlTransaction tx)
         {
             var cmd = new NpgsqlCommand(
@@ -53,8 +72,8 @@ namespace MetuCell.Services
             return Convert.ToInt64(await cmd.ExecuteScalarAsync()).ToString();
         }
 
-        // Yeni SIM kart uretir (SIM_ID = MAX+1, PUK rastgele, sahibi = customerId).
-        // Disaridan yalnizca Network_Range ve SIM_TYPE gelir (domain'den secilmis).
+        // Generates a new SIM card (SIM_ID = MAX+1, PUK is random, owner = customerId).
+        // Only Network_Range and SIM_TYPE are provided externally (selected from the domain).
         private async Task<int> CreateSimCardAsync(NpgsqlConnection conn, NpgsqlTransaction tx,
             int customerId, string networkRange, string simType)
         {
@@ -74,7 +93,7 @@ namespace MetuCell.Services
             return simId;
         }
 
-        // Hat (Mobile_Line) + kullanici ("User") olusturur.
+        // Creates a line (Mobile_Line) and a user .
         private async Task CreateLineAndUserAsync(NpgsqlConnection conn, NpgsqlTransaction tx,
             string phone, int simId, string trnId, string firstName, string lastName,
             string gender, DateTime dob, string password)
@@ -95,17 +114,17 @@ namespace MetuCell.Services
             userCmd.Parameters.AddWithValue("ln", lastName);
             userCmd.Parameters.AddWithValue("g", gender);
             userCmd.Parameters.AddWithValue("dob", dob);
-            userCmd.Parameters.AddWithValue("pw", password);
+            userCmd.Parameters.AddWithValue("pw", PasswordHasher.Hash(password));
             await userCmd.ExecuteNonQueryAsync();
         }
 
-        // ==========================================
-        // 2. MUSTERI EKLEME (+ otomatik ilk hat) - INSERT/TRANSACTION
-        // ==========================================
+        
+        //ADD CUSTOMER (+ automatic first line) - INSERT/TRANSACTION
+       
 
-        // Bireysel: Customer + Individual_Customer + otomatik SIM + otomatik hat;
-        // ilk hattin kullanicisi MUSTERININ KENDISI (kendi TRNC ID/adi ile).
-        // Donus: otomatik uretilen telefon numarasi.
+        // Individual customer types -> Customer + Individual_Customer + automatic SIM + automatic line
+        // the user of the first line is THE CUSTOMER THEMSELVES (using their own TRNC ID/name)
+        // output is automatically generated phone number.
         public async Task<string> AddIndividualCustomerAsync(string address, string email, string password,
             string trnId, string firstName, string lastName, string gender, DateTime dob,
             string networkRange, string simType)
@@ -123,7 +142,7 @@ namespace MetuCell.Services
                 c1.Parameters.AddWithValue("id", customerId);
                 c1.Parameters.AddWithValue("a", address);
                 c1.Parameters.AddWithValue("e", email);
-                c1.Parameters.AddWithValue("pw", password);
+                c1.Parameters.AddWithValue("pw", PasswordHasher.Hash(password));
                 await c1.ExecuteNonQueryAsync();
 
                 var c2 = new NpgsqlCommand(
@@ -139,7 +158,7 @@ namespace MetuCell.Services
 
                 int simId = await CreateSimCardAsync(conn, tx, customerId, networkRange, simType);
                 string phone = await GenerateNextPhoneAsync(conn, tx);
-                // Kullanici = musterinin kendisi
+                // User = the customer themselves
                 await CreateLineAndUserAsync(conn, tx, phone, simId, trnId, firstName, lastName, gender, dob, password);
 
                 await tx.CommitAsync();
@@ -148,8 +167,8 @@ namespace MetuCell.Services
             catch { await tx.RollbackAsync(); throw; }
         }
 
-        // Kurumsal: Customer + Business_Customer + otomatik SIM + otomatik hat;
-        // sirket bir "kisi" olamayacagi icin ilk hattin kullanicisi ILK CALISAN (yetkili) olur.
+        // Business customer types -> Customer + Business_Customer + automatic SIM + automatic line;
+        // Since a company cannot be a “person,” the user of the first line is the FIRST EMPLOYEE (authorized).
         public async Task<string> AddBusinessCustomerAsync(string address, string email, string password,
             string businessNo, string taxNo, string companyName,
             string networkRange, string simType,
@@ -168,7 +187,7 @@ namespace MetuCell.Services
                 c1.Parameters.AddWithValue("id", customerId);
                 c1.Parameters.AddWithValue("a", address);
                 c1.Parameters.AddWithValue("e", email);
-                c1.Parameters.AddWithValue("pw", password);
+                c1.Parameters.AddWithValue("pw", PasswordHasher.Hash(password));
                 await c1.ExecuteNonQueryAsync();
 
                 var c2 = new NpgsqlCommand(
@@ -182,7 +201,7 @@ namespace MetuCell.Services
 
                 int simId = await CreateSimCardAsync(conn, tx, customerId, networkRange, simType);
                 string phone = await GenerateNextPhoneAsync(conn, tx);
-                // Kullanici = ilk calisan; User sifresi = hesap (Customer) sifresi
+                // User = first employee; User password = account (Customer) password
                 await CreateLineAndUserAsync(conn, tx, phone, simId, empTrnId, empFirstName, empLastName, empGender, empDob, password);
 
                 await tx.CommitAsync();
@@ -191,10 +210,10 @@ namespace MetuCell.Services
             catch { await tx.RollbackAsync(); throw; }
         }
 
-        // ==========================================
-        // 2b. MEVCUT MUSTERIYE YENI HAT EKLEME (admin) - INSERT/TRANSACTION
-        //  Once SIM uretilir, sonra hat "kendisi" mi yoksa "baska kullanici" mi diye ayrilir.
-        // ==========================================
+        
+        // adding a new line to generated customer (admin)
+        //  Once the SIM is generated, it is determined whether the line is for the “customer themselves” or for “another user.”
+       
         public async Task<string> ProvisionLineForCustomerAsync(int customerId, string networkRange, string simType,
             bool forSelf, string trnId, string firstName, string lastName, string gender, DateTime dob)
         {
@@ -203,7 +222,7 @@ namespace MetuCell.Services
             await using var tx = await conn.BeginTransactionAsync();
             try
             {
-                // Musteriyi dogrula + sifresini ve tipini al
+                // Verify the customer + retrieve their password and type
                 string custPassword = null; bool isBusiness = false;
                 var info = new NpgsqlCommand(
                     @"SELECT c.password, (bc.customerid IS NOT NULL)
@@ -218,7 +237,7 @@ namespace MetuCell.Services
                     isBusiness = ir.GetBoolean(1);
                 }
 
-                // "Kendisi" secildiyse: kullanici bilgilerini Individual_Customer'dan al
+                // If “Self” is selected: retrieve user information from Individual_Customer
                 if (forSelf)
                 {
                     if (isBusiness)
@@ -256,9 +275,7 @@ namespace MetuCell.Services
             catch { await tx.RollbackAsync(); throw; }
         }
 
-        // ==========================================
-        // 3. KULLANIM DUSME (UPDATE) - tek paketten basla, yetmezse sonrakine tas
-        // ==========================================
+        // 3. consumeserice/or packet  - Start with the first package; if that's not enough, move on to the next one
         public async Task<string> ConsumeServiceAsync(string phone, int mbUsed, int smsUsed, int minUsed)
         {
             await using var conn = new NpgsqlConnection(_connectionString);
@@ -266,7 +283,7 @@ namespace MetuCell.Services
             await using var tx = await conn.BeginTransactionAsync();
             try
             {
-                // Aktif paketleri once suresi yakin olandan baslayarak al
+                // Retrieve active packages, starting with the one whose expiration date is closest
                 var packets = new List<int[]>(); // [apid, net, sms, min]
                 var sel = new NpgsqlCommand(
                     @"SELECT active_packet_id, internet_left, sms_left, minute_left
@@ -284,23 +301,23 @@ namespace MetuCell.Services
                 if (packets.Count == 0)
                     throw new Exception("No active package found for this number.");
 
-                // Bir kaynagi paketler boyunca tek tek dusuren yardimci (taşma mantığı)
+                // A helper function that iterates through a source one by one across packages (overflow logic)
                 int Spend(int need, int idx)
                 {
                     for (int i = 0; i < packets.Count && need > 0; i++)
                     {
                         int take = Math.Min(need, packets[i][idx]);
-                        packets[i][idx] -= take;   // negatife dusmez (take <= mevcut)
+                        packets[i][idx] -= take;   // does not go negative (take <= current)
                         need -= take;
                     }
-                    return need; // karsilanamayan kalan
+                    return need; // remaining unmet
                 }
 
                 int netLeftover = Spend(mbUsed,  1);
                 int smsLeftover = Spend(smsUsed, 2);
                 int minLeftover = Spend(minUsed, 3);
 
-                // Degisen paketleri guncelle
+                // Update the changed packages
                 foreach (var p in packets)
                 {
                     var up = new NpgsqlCommand(
@@ -325,9 +342,8 @@ namespace MetuCell.Services
             catch { await tx.RollbackAsync(); throw; }
         }
 
-        // ==========================================
-        // 3b. PAKET SATIN ALMA (musteri) - INSERT
-        // ==========================================
+
+        // 3b. PACKAGE PURCHASE (customer) 
         public async Task<List<PacketCatalogItem>> GetBuyablePacketsAsync()
         {
             var list = new List<PacketCatalogItem>();
@@ -356,7 +372,7 @@ namespace MetuCell.Services
             return list;
         }
 
-        // Musteri bir paketi "satin alir" (para yok). customers_packet'e kotalariyla eklenir.
+        // A customer “purchases” a package (no payment). They are added to `customers_packet` along with their quotas.
         public async Task PurchasePacketAsync(string phone, int packetId)
         {
             await using var conn = new NpgsqlConnection(_connectionString);
@@ -404,7 +420,7 @@ namespace MetuCell.Services
             catch { await tx.RollbackAsync(); throw; }
         }
 
-        // --- Hediye Paketi (UPDATE cooldown + INSERT) ---
+        //Gift Package
         public async Task GrantGiftPacketAsync(string phone, int giftPacketId)
         {
             await using var conn = new NpgsqlConnection(_connectionString);
@@ -461,11 +477,11 @@ namespace MetuCell.Services
                 @"DELETE FROM customers_packet WHERE due_date < CURRENT_DATE", conn).ExecuteNonQueryAsync();
         }
 
-        // ==========================================
-        // 5. ACCOUNT MAINTENANCE (profile update, billing renewal, deletions)
-        // ==========================================
+       
+        //ACCOUNT MAINTENANCE (profile update, billing renewal, deletions)
+        
 
-        // (6.3b) Update a customer's profile (address / email). Returns affected rows.
+        //Update a customer's profile (address / email). Returns affected rows.
         public async Task<int> UpdateCustomerProfileAsync(int customerId, string address, string email)
         {
             await using var conn = new NpgsqlConnection(_connectionString);
@@ -478,7 +494,7 @@ namespace MetuCell.Services
             return await cmd.ExecuteNonQueryAsync();
         }
 
-        // (6.3c) Renew every post-paid packet whose billing cycle (due date) has arrived:
+        //  Renew every post-paid packet whose billing cycle (due date) has arrived:
         // reset the quotas from the catalog and push the due date one month forward.
         public async Task<int> RenewExpiredPostPaidAsync()
         {
@@ -498,7 +514,7 @@ namespace MetuCell.Services
             return await cmd.ExecuteNonQueryAsync();
         }
 
-        // (6.3f) Delete a mobile line; ON DELETE CASCADE removes its "User" and Customer's Packet rows.
+        // Delete a mobile line; ON DELETE CASCADE removes its "User" and Customer's Packet rows.
         public async Task<int> DeleteMobileLineAsync(string phone)
         {
             await using var conn = new NpgsqlConnection(_connectionString);
@@ -509,7 +525,7 @@ namespace MetuCell.Services
             return await cmd.ExecuteNonQueryAsync();
         }
 
-        // (6.3g) Delete a customer; cascade removes SIM cards, mobile lines, users and packets.
+        // Delete a customer; cascade removes SIM cards, mobile lines, users and packets.
         public async Task<int> DeleteCustomerAsync(int customerId)
         {
             await using var conn = new NpgsqlConnection(_connectionString);
@@ -520,9 +536,7 @@ namespace MetuCell.Services
             return await cmd.ExecuteNonQueryAsync();
         }
 
-        // ==========================================
-        // 4. RAPORLAMA SORGULARI (a-f)
-        // ==========================================
+        // 4. REPORTING QUERIES (a–f)
         public async Task<BalanceReport> GetRemainingBalancesAsync(string phone)
         {
             await using var conn = new NpgsqlConnection(_connectionString);
@@ -542,8 +556,8 @@ namespace MetuCell.Services
                 : null;
         }
 
-        // Hatta ait HER aktif paketi ayri ayri dondurur (kalan + orijinal kotalariyla).
-        // Dashboard'da Turkcell-tarzi paket-bazli gosterim icin kullanilir.
+        // Freezes EACH active package separately (with remaining and original data allowances).
+        // Used for modern-style package-based display on the dashboard.
         public async Task<List<PacketUsage>> GetActivePacketsAsync(string phone)
         {
             var list = new List<PacketUsage>();
@@ -627,7 +641,7 @@ namespace MetuCell.Services
             return list;
         }
 
-        // (c) Hediye cekilisine uygun hatlar (cooldown gecmis)
+        // Lines eligible for the giveaway (cooldown period has passed)
         public async Task<List<string>> GetEligibleLinesForGiftAsync()
         {
             var list = new List<string>();
@@ -641,8 +655,9 @@ namespace MetuCell.Services
             return list;
         }
 
-        // (d) Kilitli hat icin PUK + SIM TYPE (JOIN)
-        public async Task<string> GetSimDetailsAsync(string phone)
+        // query service fr locked sims PUK + SIM TYPE (JOIN). Returns the structured
+        // SimReport (PukNo + SimType) so the UI can mask PUK independently.
+        public async Task<SimReport> GetSimDetailsAsync(string phone)
         {
             await using var conn = new NpgsqlConnection(_connectionString);
             await conn.OpenAsync();
@@ -651,7 +666,9 @@ namespace MetuCell.Services
                   JOIN mobile_line m ON s.sim_id = m.sim_id WHERE m.phone_number = @p", conn);
             cmd.Parameters.AddWithValue("p", phone);
             await using var r = await cmd.ExecuteReaderAsync();
-            return await r.ReadAsync() ? $"PUK: {r.GetString(0)}  |  TYPE: {r.GetString(1)}" : "No record found.";
+            return await r.ReadAsync()
+                ? new SimReport { PukNo = r.GetString(0), SimType = r.GetString(1) }
+                : null;
         }
 
         public async Task<List<string>> GetExpiringLinesAsync()
@@ -685,7 +702,7 @@ namespace MetuCell.Services
         }
     }
 
-    // ---- Yardimci modeller ----
+    // helper models 
     public class LoginResult
     {
         public int CustomerId { get; set; }

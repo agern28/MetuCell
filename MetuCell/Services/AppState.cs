@@ -25,7 +25,7 @@ namespace MetuCell.Services
             NotifyStateChanged();
         }
 
-        // Yonetici (operator) girisi: hatta bagli degildir, tum CRM yetkisine sahiptir.
+        // Yonetici (operator) girisi hatta bagli degildir o yüzden tum CRM yetkisine sahiptir.
         public void LoginAdmin(string name)
         {
             LoggedInPhone = null;
